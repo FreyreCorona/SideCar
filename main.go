@@ -13,11 +13,8 @@ func main() {
 }
 
 func run(args []string) error {
-	// Si no hay subcomando o hay flags → CLI
-	if len(args) < 2 || args[1] != "ui" {
-		return runCLI(args)
+	if len(args) > 1 && args[1] == "ui" {
+		return runUI()
 	}
-
-	// sidecar ui
-	return runUI()
+	return runCLI(args)
 }
