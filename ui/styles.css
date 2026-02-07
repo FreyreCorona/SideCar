@@ -5,58 +5,84 @@
 body {
   margin: 0;
   font-family: system-ui, sans-serif;
-  background: #111;
-  color: #eee;
+  background: #0f0f0f;
+  color: #eaeaea;
 }
 
-#app {
+.app {
   display: flex;
   height: 100vh;
 }
 
-#preview {
-  flex: 2;
+.controls {
+  width: 300px;
+  padding: 20px;
+  background: #181818;
+  border-right: 1px solid #222;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+}
+
+.controls h2 {
+  margin-top: 0;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.asset-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.asset-list li {
+  padding: 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-bottom: 6px;
+  background: #1f1f1f;
+  transition: background 0.15s ease;
+}
+
+.asset-list li:hover {
+  background: #2a2a2a;
+}
+
+.asset-list li.selected {
+  background: #3a3a3a;
+}
+
+.primary-btn {
+  margin-top: 12px;
+  padding: 12px;
+  border: none;
+  border-radius: 6px;
+  background: #3b82f6;
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.primary-btn:disabled {
+  background: #333;
+  cursor: not-allowed;
+}
+
+.preview {
+  flex: 1;
+  display: flex;
   align-items: center;
+  justify-content: center;
   background: #000;
 }
 
 #previewCanvas {
-  width: 90%;
-  height: 90%;
+  width: 95%;
+  height: 95%;
   background: #000;
+  border-radius: 8px;
 }
 
-#controls {
-  flex: 1;
-  padding: 16px;
-  background: #1a1a1a;
-  overflow-y: auto;
-}
-
-#assetList {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-#assetList li {
-  padding: 8px;
-  cursor: pointer;
-  border-bottom: 1px solid #333;
-}
-
-#assetList li.selected {
-  background: #333;
-}
-
-.actions {
-  margin-top: 16px;
-}
-
-button {
-  width: 100%;
-  padding: 10px;
-  font-size: 14px;
-}

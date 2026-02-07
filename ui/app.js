@@ -1,69 +1,75 @@
-
 const state = {
   assets: [],
-  selected: null
+  selected: null,
+  image: new Image()
 };
 
 const canvas = document.getElementById("previewCanvas");
 const ctx = canvas.getContext("2d");
+const assetList = document.getElementById("assetList");
+const setBtn = document.getElementById("setBtn");
 
 function resizeCanvas() {
-  canvas.width = canvas.clientWidth;
-  canvas.height = canvas.clientHeight;
+  const { clientWidth, clientHeight } = canvas;
+  canvas.width = clientWidth;
+  canvas.height = clientHeight;
   renderPreview();
 }
 
 window.addEventListener("resize", resizeCanvas);
 
 function loadAssets() {
-  // esta lista vendrá de Go más adelante si quieres
   state.assets = [
     { id: "screensaver1", src: "statics/screensaver1.gif" },
     { id: "screensaver2", src: "statics/screensaver2.gif" }
   ];
 
-  const list = document.getElementById("assetList");
-  list.innerHTML = "";
+  assetList.innerHTML = "";
 
   state.assets.forEach(asset => {
     const li = document.createElement("li");
     li.textContent = asset.id;
-    li.onclick = () => selectAsset(asset);
-    list.appendChild(li);
+    li.addEventListener("click", () => selectAsset(asset, li));
+    assetList.appendChild(li);
   });
 }
 
-function selectAsset(asset) {
+function selectAsset(asset, element) {
   state.selected = asset;
-  document.querySelectorAll("#assetList li")
+  setBtn.disabled = false;
+
+  document.querySelectorAll(".asset-list li")
     .forEach(li => li.classList.remove("selected"));
 
-  event.target.classList.add("selected");
-  renderPreview();
+  element.classList.add("selected");
+
+  state.image.src = asset.src;
 }
+
+state.image.onload = renderPreview;
 
 function renderPreview() {
-  if (!state.selected) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    return;
-  }
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  const img = new Image();
-  img.onload = () => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  };
-  img.src = state.selected.src;
-}
-
-document.getElementById("setBtn").onclick = () => {
   if (!state.selected) return;
 
-  // aquí llamas a Go
+  ctx.drawImage(
+    state.image,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+}
+
+setBtn.addEventListener("click", () => {
+  if (!state.selected) return;
+
   window.setImage(JSON.stringify({
     asset: state.selected.id
   }));
-};
+});
 
 resizeCanvas();
 loadAssets();
+

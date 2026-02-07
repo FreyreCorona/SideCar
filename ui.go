@@ -12,27 +12,31 @@ func runUI() error {
 	w := wv.New(debug)
 	defer w.Destroy()
 
-	w.SetTitle("Vision R15 Controller")
-	w.SetSize(900, 600, wv.HintNone)
+	w.SetTitle("Side Car Controller")
+	w.SetSize(1000, 650, wv.HintNone)
 
 	// Servir UI
-	fs := http.FileServer(http.Dir("ui"))
-	http.Handle("/", fs)
+	mux := http.NewServeMux()
+	mux.Handle("/", http.FileServer(http.Dir("ui")))
+
+	server := &http.Server{
+		Addr:    "127.0.0.1:8080",
+		Handler: mux,
+	}
 
 	go func() {
 		log.Println("UI server on http://127.0.0.1:8080")
-		if err := http.ListenAndServe("127.0.0.1:8080", nil); err != nil {
+		if err := server.ListenAndServe(); err != nil {
 			log.Fatal(err)
 		}
 	}()
 
-	// API UI → Go
 	w.Bind("setImage", func(payload string) {
 		log.Println("Set image:", payload)
 		// aquí luego llamas a core/
 	})
 
-	w.Navigate("http://127.0.0.1:8080/index.html")
+	w.Navigate("http://127.0.0.1:8080")
 	w.Run()
 
 	return nil

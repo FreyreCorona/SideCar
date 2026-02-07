@@ -2,24 +2,24 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Vision R15 Controller</title>
+  <title>Side Car Controller</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div id="app">
-    <div id="preview">
+  <main class="app">
+    <aside class="controls">
+        <h2>Available Assets</h2>
+        <ul id="assetList" class="asset-list"></ul>
+
+        <button id="setBtn" class="primary-btn" disabled>
+          Set Asset
+        </button>
+    </aside>
+
+    <section class="preview">
       <canvas id="previewCanvas"></canvas>
-    </div>
-
-    <div id="controls">
-      <h2>Content</h2>
-      <ul id="assetList"></ul>
-
-      <div class="actions">
-        <button id="setBtn">Set</button>
-      </div>
-    </div>
-  </div>
+    </section>
+  </main>
 
   <script src="app.js"></script>
 </body>
