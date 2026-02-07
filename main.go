@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/FreyreCorona/SideCar/core"
 )
 
 const Baud = 115200
@@ -17,14 +19,14 @@ func main() {
 }
 
 func run(args []string) error {
-	fs := flag.NewFlagSet("minitela", flag.ContinueOnError)
+	fs := flag.NewFlagSet("sidecar", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
 	device := fs.String("device", "", "device path or 'auto'")
 	brightness := fs.Int("brightness", -1, "brightness value (0-100)")
 
 	if err := fs.Parse(args[1:]); err != nil {
-		return fmt.Errorf("usage: minitela --device <path|auto> [--brightness N] <on|off>")
+		return fmt.Errorf("usage: sidecar --device <path|auto> [--brightness N] <on|off>")
 	}
 
 	if *device == "" {
@@ -73,15 +75,15 @@ func run(args []string) error {
 	return nil
 }
 
-func connect(devicePath string) (*Device, error) {
+func connect(devicePath string) (*core.Device, error) {
 	if devicePath == "auto" {
-		return AutoConnect(Baud)
+		return core.AutoConnect(Baud)
 	}
 
-	port, err := OpenSerial(devicePath, Baud)
+	port, err := core.OpenSerial(devicePath, Baud)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewDevice(port), nil
+	return core.NewDevice(port), nil
 }

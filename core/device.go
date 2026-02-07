@@ -1,4 +1,5 @@
-package main
+// Package core implements the conection and expose resources of the mini-screen
+package core
 
 import (
 	"fmt"
