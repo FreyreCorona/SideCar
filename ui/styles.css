@@ -1,0 +1,62 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: #111;
+  color: #eee;
+}
+
+#app {
+  display: flex;
+  height: 100vh;
+}
+
+#preview {
+  flex: 2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #000;
+}
+
+#previewCanvas {
+  width: 90%;
+  height: 90%;
+  background: #000;
+}
+
+#controls {
+  flex: 1;
+  padding: 16px;
+  background: #1a1a1a;
+  overflow-y: auto;
+}
+
+#assetList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+#assetList li {
+  padding: 8px;
+  cursor: pointer;
+  border-bottom: 1px solid #333;
+}
+
+#assetList li.selected {
+  background: #333;
+}
+
+.actions {
+  margin-top: 16px;
+}
+
+button {
+  width: 100%;
+  padding: 10px;
+  font-size: 14px;
+}
