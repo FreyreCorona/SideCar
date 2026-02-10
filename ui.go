@@ -4,7 +4,8 @@ import (
 	"log"
 	"net/http"
 
-	wv "github.com/webview/webview_go"
+	wv "github.com/abemedia/go-webview"
+	_ "github.com/abemedia/go-webview/embedded"
 )
 
 func runUI() error {
