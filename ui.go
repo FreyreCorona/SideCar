@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"time"
 
 	wv "github.com/abemedia/go-webview"
 	_ "github.com/abemedia/go-webview/embedded"
@@ -39,6 +40,13 @@ func runUI() error {
 
 	w.Bind("getCurrentFrame", getCurrentFrame)
 	w.Bind("nextView", nextView)
+
+	onViewChange = func() {
+		w.Dispatch(func() {
+			w.Eval(`window.onViewChanged()`)
+		})
+	}
+	startAutoCycle(5 * time.Second)
 
 	w.Navigate("http://127.0.0.1:8080")
 	w.Run()

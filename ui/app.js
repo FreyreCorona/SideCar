@@ -26,21 +26,10 @@ window.addEventListener("keydown", async (e) => {
     await renderCurrentView()
   }
 })
-function loadAssets() {
-  state.assets = [
-    { id: "screensaver1", src: "statics/screensaver1.gif" },
-    { id: "screensaver2", src: "statics/screensaver2.gif" }
-  ];
-
-  assetList.innerHTML = "";
-
-  state.assets.forEach(asset => {
-    const li = document.createElement("li");
-    li.textContent = asset.id;
-    li.addEventListener("click", () => selectAsset(asset, li));
-    assetList.appendChild(li);
-  });
+window.onViewChanged = async function () {
+  await renderCurrentView()
 }
+
 
 function selectAsset(asset, element) {
   state.selected = asset;
@@ -98,5 +87,4 @@ setBtn.addEventListener("click", () => {
 
 
 resizeCanvas();
-loadAssets();
-setInterval(renderCurrentView,1000);
+renderCurrentView();
