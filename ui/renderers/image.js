@@ -1,4 +1,4 @@
-export async function renderImages(ctx, frame) {
+async function renderImages(ctx, frame) {
   for (const imgBlock of frame.images) {
     const img = new Image()
     img.src = imgBlock.path

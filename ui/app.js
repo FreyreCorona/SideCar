@@ -1,5 +1,4 @@
-import { renderTextFrame } from "./renderers/text.js"
-import { renderImages } from "./renderers/image.js"
+console.log("App loaded")
 
 const state = {
   assets: [],
@@ -29,7 +28,6 @@ window.addEventListener("keydown", async (e) => {
 window.onViewChanged = async function () {
   await renderCurrentView()
 }
-
 
 function selectAsset(asset, element) {
   state.selected = asset;
@@ -73,8 +71,6 @@ async function renderCurrentView() {
   }
 }
 
-
-
 setBtn.addEventListener("click", () => {
   if (!state.selected) return;
 
@@ -82,8 +78,6 @@ setBtn.addEventListener("click", () => {
     asset: state.selected.id
   }));
 });
-
-
 
 
 resizeCanvas();
