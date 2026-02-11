@@ -1,3 +1,5 @@
+import { renderTextFrame } from "./renderers/text.js"
+
 const state = {
   assets: [],
   selected: null,
@@ -62,6 +64,12 @@ function renderPreview() {
   );
 }
 
+async function renderCurrentView() {
+  const frame = await window.getCurrentFrame()
+  renderTextFrame(ctx, canvas, frame)
+}
+
+
 setBtn.addEventListener("click", () => {
   if (!state.selected) return;
 
@@ -72,4 +80,4 @@ setBtn.addEventListener("click", () => {
 
 resizeCanvas();
 loadAssets();
-
+setInterval(renderCurrentView,1000);

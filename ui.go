@@ -37,6 +37,11 @@ func runUI() error {
 		// aquí luego llamas a core/
 	})
 
+	w.Bind("getCurrentFrame", func() RenderFrame {
+		log.Println("Getting Stats")
+		return SystemStatsView()
+	})
+
 	w.Navigate("http://127.0.0.1:8080")
 	w.Run()
 
