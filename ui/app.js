@@ -20,7 +20,12 @@ function resizeCanvas() {
 }
 
 window.addEventListener("resize", resizeCanvas);
-
+window.addEventListener("keydown", async (e) => {
+  if (e.key === "ArrowRight") {
+    await window.nextView()
+    await renderCurrentView()
+  }
+})
 function loadAssets() {
   state.assets = [
     { id: "screensaver1", src: "statics/screensaver1.gif" },
@@ -88,6 +93,9 @@ setBtn.addEventListener("click", () => {
     asset: state.selected.id
   }));
 });
+
+
+
 
 resizeCanvas();
 loadAssets();
