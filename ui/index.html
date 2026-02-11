@@ -9,7 +9,10 @@
   <main class="app">
     <aside class="controls">
         <h2>Available Assets</h2>
-        <ul id="assetList" class="asset-list"></ul>
+          <ul id="assetList" class="asset-list">
+            <li data-view="cpu" class="selected">CPU / RAM / Temp</li>
+            <li data-view="network">Network / Battery / Uptime</li>
+          </ul>
 
         <button id="setBtn" class="primary-btn" disabled>
           Set Asset

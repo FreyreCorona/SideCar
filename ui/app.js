@@ -7,7 +7,8 @@ const state = {
 };
 
 const canvas = document.getElementById("previewCanvas");
-const ctx = canvas.getContext("2d");
+const ctx = canvas ? canvas.getContext("2d") : null;
+// ...existing code...
 const assetList = document.getElementById("assetList");
 const setBtn = document.getElementById("setBtn");
 

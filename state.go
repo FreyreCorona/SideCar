@@ -11,10 +11,8 @@ func getCurrentFrame() RenderFrame {
 		return CPUAndMemoryView()
 	case 1:
 		return NetworkView()
-	case 2:
-		return PowerView()
 	default:
-		return CPUAndMemoryView()
+		return PowerView()
 	}
 }
 
