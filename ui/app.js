@@ -8,9 +8,9 @@ const state = {
 
 const canvas = document.getElementById("previewCanvas");
 const ctx = canvas ? canvas.getContext("2d") : null;
-// ...existing code...
 const assetList = document.getElementById("assetList");
 const setBtn = document.getElementById("setBtn");
+const imageInput = document.getElementById("imageInput");
 
 function resizeCanvas() {
   const { clientWidth, clientHeight } = canvas;
@@ -80,6 +80,44 @@ setBtn.addEventListener("click", () => {
   }));
 });
 
+assetList.addEventListener("click", async (e) => {
+  if (e.target.tagName !== "LI") return;
+
+  document.querySelectorAll(".asset-list li")
+    .forEach(li => li.classList.remove("selected"));
+  e.target.classList.add("selected");
+
+  const view = e.target.dataset.view;
+  if (view === "image") {
+    imageInput.click();
+  } else {
+    await renderCurrentView();
+  }
+});
+
+imageInput.addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  // Enviar imagen al backend
+  const formData = new FormData();
+  formData.append("image", file);
+
+  const res = await fetch("/upload", {
+    method: "POST",
+    body: formData
+  });
+
+  const { path } = await res.json();
+
+  // Renderizar la imagen en el canvas
+  const img = new window.Image();
+  img.onload = () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  };
+  img.src = path;
+});
 
 resizeCanvas();
 renderCurrentView();

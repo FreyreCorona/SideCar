@@ -1,9 +1,11 @@
 package main
 
 import (
+	"io"
 	"log"
 	"net/http"
-	"time"
+	"os"
+	"path/filepath"
 
 	wv "github.com/abemedia/go-webview"
 	_ "github.com/abemedia/go-webview/embedded"
@@ -20,6 +22,33 @@ func runUI() error {
 	// Servir UI
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.Dir("ui")))
+
+	mux.HandleFunc("/upload", func(wr http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(wr, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		file, header, err := r.FormFile("image")
+		if err != nil {
+			http.Error(wr, "Bad request", http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+
+		os.MkdirAll("ui/statics", 0755)
+		dstPath := filepath.Join("ui/statics", header.Filename)
+		dst, err := os.Create(dstPath)
+		if err != nil {
+			http.Error(wr, "Failed to save", http.StatusInternalServerError)
+			return
+		}
+		defer dst.Close()
+		io.Copy(dst, file)
+
+		// Devuelve la ruta relativa para el frontend
+		wr.Header().Set("Content-Type", "application/json")
+		io.WriteString(wr, `{"path":"/statics/`+header.Filename+`"}`)
+	})
 
 	server := &http.Server{
 		Addr:    "127.0.0.1:8080",
@@ -46,7 +75,6 @@ func runUI() error {
 			w.Eval(`window.onViewChanged()`)
 		})
 	}
-	startAutoCycle(5 * time.Second)
 
 	w.Navigate("http://127.0.0.1:8080")
 	w.Run()

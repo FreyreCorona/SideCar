@@ -1,7 +1,5 @@
 package main
 
-import "time"
-
 var currentView = 0
 var onViewChange func()
 
@@ -21,19 +19,4 @@ func nextView() {
 	if currentView > 1 {
 		currentView = 0
 	}
-}
-
-func startAutoCycle(interval time.Duration) {
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-
-		for range ticker.C {
-			nextView()
-
-			if onViewChange != nil {
-				onViewChange()
-			}
-		}
-	}()
 }
