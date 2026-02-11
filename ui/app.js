@@ -1,4 +1,5 @@
 import { renderTextFrame } from "./renderers/text.js"
+import { renderImages } from "./renderers/image.js"
 
 const state = {
   assets: [],
@@ -66,8 +67,18 @@ function renderPreview() {
 
 async function renderCurrentView() {
   const frame = await window.getCurrentFrame()
-  renderTextFrame(ctx, canvas, frame)
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+  if (frame.texts) {
+    renderTextFrame(ctx, canvas, frame)
+  }
+
+  if (frame.images) {
+    await renderImages(ctx, frame)
+  }
 }
+
 
 
 setBtn.addEventListener("click", () => {

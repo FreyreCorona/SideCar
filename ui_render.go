@@ -5,6 +5,13 @@ type TextBlock struct {
 	Size int    `json:"size"`
 }
 
+type ImageBlock struct {
+	Path   string `json:"path"`
+	Width  int    `json:"width"`
+	Height int    `json:"height"`
+}
+
 type RenderFrame struct {
-	Blocks []TextBlock `json:"blocks"`
+	Texts  []TextBlock  `json:"texts"`
+	Images []ImageBlock `json:"images"`
 }
