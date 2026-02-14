@@ -6,20 +6,43 @@ import (
 	"github.com/FreyreCorona/SideCar/metrics"
 )
 
-type TextBlock struct {
-	Text string `json:"text"`
-	Size int    `json:"size"`
+type (
+	TextBlock struct {
+		Text string `json:"text"`
+		Size int    `json:"size"`
+	}
+
+	ImageBlock struct {
+		Path   string `json:"path"`
+		Width  int    `json:"width"`
+		Height int    `json:"height"`
+	}
+
+	RenderFrame struct {
+		Texts  []TextBlock  `json:"texts"`
+		Images []ImageBlock `json:"images"`
+	}
+)
+
+var currentView = 0
+var onViewChange func()
+
+func getCurrentFrame() RenderFrame {
+	switch currentView {
+	case 0:
+		return CPUAndMemoryView()
+	case 1:
+		return NetworkView()
+	default:
+		return PowerView()
+	}
 }
 
-type ImageBlock struct {
-	Path   string `json:"path"`
-	Width  int    `json:"width"`
-	Height int    `json:"height"`
-}
-
-type RenderFrame struct {
-	Texts  []TextBlock  `json:"texts"`
-	Images []ImageBlock `json:"images"`
+func nextView() {
+	currentView++
+	if currentView > 1 {
+		currentView = 0
+	}
 }
 
 func ImageView() RenderFrame {
@@ -36,6 +59,7 @@ func ImageView() RenderFrame {
 		},
 	}
 }
+
 func CPUAndMemoryView() RenderFrame {
 	cpu := metrics.CollectCPUMetrics()
 	mem := metrics.CollectMemoryMetrics()
@@ -48,6 +72,7 @@ func CPUAndMemoryView() RenderFrame {
 		},
 	}
 }
+
 func NetworkView() RenderFrame {
 	net := metrics.CollectNetworkMetrics()
 
@@ -59,6 +84,7 @@ func NetworkView() RenderFrame {
 		},
 	}
 }
+
 func PowerView() RenderFrame {
 	bat := metrics.CollectBatteryMetrics()
 	up := metrics.CollectUptimeMetrics()
