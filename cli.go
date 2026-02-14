@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/FreyreCorona/SideCar/core"
 )
@@ -37,6 +38,7 @@ func runCLI(args []string) error {
 		return err
 	}
 	defer dev.Close()
+	dev.SetLogger(os.Stdout)
 
 	if err := dev.Handshake(); err != nil {
 		return err
