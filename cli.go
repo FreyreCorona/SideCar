@@ -9,65 +9,51 @@ import (
 	"github.com/FreyreCorona/SideCar/core"
 )
 
-const Baud = 115200
-
 func runCLI(args []string) error {
 	fs := flag.NewFlagSet("sidecar", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
-	device := fs.String("device", "", "device path or 'auto'")
-	brightness := fs.Int("brightness", -1, "brightness value (0-100)")
+	device := fs.String("device", "auto", "device path or 'auto'")
+	brightness := fs.Int("brightness", 100, "brightness value (0-100)")
+	cmd := fs.String("command", "on", "command to send")
 
 	if err := fs.Parse(args[1:]); err != nil {
 		return fmt.Errorf("usage: sidecar --device <path|auto> [--brightness N] <on|off>")
 	}
 
-	if *device == "" {
-		return fmt.Errorf("missing --device")
-	}
-
-	rest := fs.Args()
-	if len(rest) < 1 {
-		return fmt.Errorf("missing command (on|off)")
-	}
-
-	command := rest[0]
-
 	dev, err := connect(*device)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to connect %s", err.Error())
 	}
 	defer dev.Close()
-	dev.SetLogger(os.Stdout)
 
+	dev.SetLogger(os.Stdout)
 	if err := dev.Handshake(); err != nil {
 		return err
 	}
 
-	switch command {
+	switch *cmd {
 	case "on":
 		if err := dev.Wake(); err != nil {
-			return err
+			return fmt.Errorf("unable to execute 'on' command. %s", err.Error())
 		}
 	case "off":
 		if err := dev.Sleep(); err != nil {
-			return err
+			return fmt.Errorf("unable to execute 'off' command. %s", err.Error())
 		}
 	default:
-		return fmt.Errorf("unknown command: %s", command)
+		return fmt.Errorf("unknown command: %s", cmd)
 	}
 
-	if *brightness != -1 {
-		if *brightness < 0 || *brightness > 100 {
-			return fmt.Errorf("brightness must be between 0 and 100")
-		}
-		return dev.SetBrightness(uint8(*brightness))
+	if *brightness < 0 || *brightness > 100 {
+		return fmt.Errorf("brightness must be between 0 and 100")
 	}
 
 	return nil
 }
 
 func connect(devicePath string) (*core.Device, error) {
+	Baud := 115200
 	if devicePath == "auto" {
 		return core.AutoConnect(Baud)
 	}
