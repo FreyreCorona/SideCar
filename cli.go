@@ -28,10 +28,6 @@ func runCLI(args []string) error {
 		return nil
 	}
 
-	if *brightness < 0 || *brightness > 100 {
-		return fmt.Errorf("brightness must be between 0 and 100")
-	}
-
 	var dev *core.Device
 
 	if *device != "auto" {
@@ -40,28 +36,32 @@ func runCLI(args []string) error {
 			return fmt.Errorf("unable to stablish connection with the device: %s on baud %d, error : %v", *device, *baud, err)
 		}
 		dev = core.NewDevice(sp)
+		dev.SetLogger(os.Stdout)
+
+		if err := dev.Handshake(); err != nil {
+			return err
+		}
 	} else {
 		var cErr error
 		dev, cErr = core.AutoConnect(int(*baud))
 		if cErr != nil {
 			return fmt.Errorf("using baud %d cannot establish connection with any device, error: %v", *baud, cErr)
 		}
-	}
-
-	defer dev.Close()
-	dev.SetLogger(os.Stdout)
-	if err := dev.Handshake(); err != nil {
-		return err
-	}
-
-	if err := dev.SetBrightness(uint8(*brightness)); err != nil {
-		return fmt.Errorf("unable to set brightness to %d, error: %v", *brightness, err)
+		dev.SetLogger(os.Stdout)
 	}
 
 	switch *cmd {
 	case "on":
+		if *brightness < 0 || *brightness > 100 {
+			return fmt.Errorf("brightness must be between 0 and 100")
+		}
+
 		if err := dev.Wake(); err != nil {
 			return fmt.Errorf("unable to execute 'on' command. %s", err.Error())
+		}
+
+		if err := dev.SetBrightness(uint8(*brightness)); err != nil {
+			return fmt.Errorf("unable to set brightness to %d: %v", *brightness, err)
 		}
 	case "off":
 		if err := dev.Sleep(); err != nil {
