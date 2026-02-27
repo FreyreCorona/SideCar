@@ -37,14 +37,14 @@ func runCLI(args []string) error {
 	if *device != "auto" {
 		sp, err := core.OpenSerial(*device, int(*baud))
 		if err != nil {
-			return fmt.Errorf("unable to stablish connection with the device :%s on baud %d ,error : %v", *device, *baud, err)
+			return fmt.Errorf("unable to stablish connection with the device: %s on baud %d, error : %v", *device, *baud, err)
 		}
 		dev = core.NewDevice(sp)
 	} else {
 		var cErr error
 		dev, cErr = core.AutoConnect(int(*baud))
 		if cErr != nil {
-			return fmt.Errorf("using baud %d cannot establish connection with any device, error : %v", *baud, cErr)
+			return fmt.Errorf("using baud %d cannot establish connection with any device, error: %v", *baud, cErr)
 		}
 	}
 
@@ -55,7 +55,7 @@ func runCLI(args []string) error {
 	}
 
 	if err := dev.SetBrightness(uint8(*brightness)); err != nil {
-		return fmt.Errorf("unable to set brightness to %d, error : %v", *brightness, err)
+		return fmt.Errorf("unable to set brightness to %d, error: %v", *brightness, err)
 	}
 
 	switch *cmd {
