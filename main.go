@@ -1,20 +1,21 @@
 package main
 
 import (
-	"fmt"
+	"flag"
 	"os"
 )
 
 func main() {
-	if err := run(os.Args); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-}
+	ui := flag.Bool("ui", false, "run in ui mode")
 
-func run(args []string) error {
-	if len(args) > 1 && args[1] == "ui" {
-		return runUI()
+	if *ui {
+		if err := runUI(); err != nil {
+			os.Stderr.Write([]byte(err.Error()))
+		}
+		return
 	}
-	return runCLI(args)
+
+	if err := runCLI(os.Args); err != nil {
+		os.Stderr.Write([]byte(err.Error()))
+	}
 }
