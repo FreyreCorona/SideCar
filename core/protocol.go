@@ -4,37 +4,21 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"hash/crc32"
+	"fmt"
 	"time"
 )
 
 var (
-	ErrTimeout    = errors.New("timeout waiting response")
-	ErrShortFrame = errors.New("short frame")
-	ErrNACK       = errors.New("device returned NACK")
+	ErrTimeout        = errors.New("timeout waiting for response")
+	ErrShortFrame     = errors.New("frame too short")
+	ErrBadEndFlag     = errors.New("invalid end flag")
+	ErrBadCRC         = errors.New("CRC mismatch")
+	ErrUnexpectedType = errors.New("unexpected command type")
 )
 
-var header = []byte{0x41, 0x48}
-
-func CRC(data []byte) uint32 {
-	return crc32.ChecksumIEEE(data)
-}
-
-func BuildFrame(payload []byte) []byte {
-	frameLen := 2 + 1 + len(payload) + 4
-	frame := make([]byte, frameLen)
-
-	copy(frame[0:2], header)
-	frame[2] = byte(len(payload))
-	copy(frame[3:], payload)
-
-	crc := crc32.ChecksumIEEE(frame[:3+len(payload)])
-	binary.LittleEndian.PutUint32(frame[3+len(payload):], crc)
-
-	return frame
-}
-
-func ReadResponse(p *SerialPort, timeout time.Duration) ([]byte, error) {
+// ReadResponse lee del puerto hasta encontrar un frame válido o agotar el timeout.
+// Busca el start flag, valida estructura, CRC y end flag.
+func ReadResponse(p *SerialPort, timeout time.Duration) (*Response, error) {
 	deadline := time.Now().Add(timeout)
 
 	buf := make([]byte, 0, 256)
@@ -55,55 +39,92 @@ func ReadResponse(p *SerialPort, timeout time.Duration) ([]byte, error) {
 
 		buf = append(buf, tmp[:n]...)
 
-		i := bytes.Index(buf, header)
-		if i == -1 {
+		resp, consumed, err := tryParseFrame(buf)
+		if err == errNeedMore {
+			// No tenemos suficientes bytes aún, seguir leyendo
 			if len(buf) > 4096 {
-				buf = buf[:0]
+				// Descartamos hasta el próximo start flag para no crecer sin límite
+				buf = discardUntilStartFlag(buf[1:])
 			}
 			continue
 		}
 
-		if len(buf[i:]) < 3 {
+		if err != nil {
+			// Frame inválido en esta posición, avanzamos y buscamos el siguiente start flag
+			buf = discardUntilStartFlag(buf[1:])
 			continue
 		}
 
-		payloadLen := int(buf[i+2])
-		frameLen := 2 + 1 + payloadLen + 4
-
-		if len(buf[i:]) < frameLen {
-			continue
-		}
-
-		frame := buf[i : i+frameLen]
-
-		dataEnd := i + 3 + payloadLen
-		expected := binary.LittleEndian.Uint32(buf[dataEnd : dataEnd+4])
-		actual := crc32.ChecksumIEEE(buf[i:dataEnd])
-
-		if expected != actual {
-			buf = buf[i+2:]
-			continue
-		}
-
-		return frame, nil
+		// Frame válido
+		_ = consumed
+		return resp, nil
 	}
 }
 
-func ExpectACK(port *SerialPort, timeout time.Duration) error {
-	resp, err := ReadResponse(port, timeout)
+// errNeedMore indica que el buffer no tiene suficientes bytes todavía.
+var errNeedMore = errors.New("need more data")
+
+// tryParseFrame intenta parsear un frame desde el inicio del buffer.
+// Devuelve (response, bytesConsumed, error).
+func tryParseFrame(buf []byte) (*Response, int, error) {
+	// Buscar start flag
+	i := bytes.Index(buf, frameStart[:])
+	if i == -1 {
+		return nil, 0, errNeedMore
+	}
+	buf = buf[i:]
+
+	// Necesitamos al menos: start(2) + control(2) + type(2) + crc(2) + end(2) = 10 bytes mínimo
+	if len(buf) < 10 {
+		return nil, 0, errNeedMore
+	}
+
+	controlFlag := binary.BigEndian.Uint16(buf[2:4])
+	dataLen := int(controlFlag & 0x7FFF)
+
+	if dataLen < 2 {
+		return nil, 0, errors.New("dataLen inválido")
+	}
+
+	contentLen := dataLen - 2
+	frameSize := 2 + 2 + 2 + contentLen + 2 + 2 // start+ctrl+type+content+crc+end
+
+	if len(buf) < frameSize {
+		return nil, 0, errNeedMore
+	}
+
+	frame := buf[:frameSize]
+	resp, err := ParseFrame(frame)
 	if err != nil {
-		return err
+		return nil, 0, err
 	}
 
-	if len(resp) < 7 {
-		return ErrShortFrame
+	if !resp.CRCValid() {
+		return nil, 0, ErrBadCRC
 	}
 
-	status := resp[3]
+	return resp, i + frameSize, nil
+}
 
-	if status != 0x00 {
-		return ErrNACK
+// discardUntilStartFlag descarta bytes hasta encontrar el start flag.
+func discardUntilStartFlag(buf []byte) []byte {
+	i := bytes.Index(buf, frameStart[:])
+	if i == -1 {
+		return buf[:0]
+	}
+	return buf[i:]
+}
+
+// ExpectResponse lee una respuesta y valida que sea del tipo esperado.
+func ExpectResponse(p *SerialPort, expected CommandType, timeout time.Duration) (*Response, error) {
+	resp, err := ReadResponse(p, timeout)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil
+	if resp.Type != expected {
+		return nil, fmt.Errorf("%w: got %s, want %s", ErrUnexpectedType, resp.Type, expected)
+	}
+
+	return resp, nil
 }
