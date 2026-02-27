@@ -14,7 +14,7 @@ func runCLI(args []string) error {
 	fs.SetOutput(io.Discard)
 
 	device := fs.String("device", "auto", "device path or 'auto'")
-	baud := fs.Uint("baud", 11520, "baud rate")
+	baud := fs.Uint("baud", 115200, "baud rate")
 	cmd := fs.String("cmd", "on", "command to send")
 	brightness := fs.Int("brightness", 100, "brightness screen value (0-100)") //optional
 	help := fs.Bool("help", false, "display command help")                     //optional
