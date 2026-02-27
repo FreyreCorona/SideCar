@@ -4,18 +4,17 @@ package core
 import (
 	"fmt"
 	"io"
+	"time"
 )
 
-var handshakeCmd = []byte{
-	0x41, 0x48,
+var handshakePayload = []byte{
 	0x80, 0x01,
 	0x00, 0x00,
-	0xE2, 0xCB, 0x4D, 0x49,
 }
 
-var brightnessCmdTemplate = []byte{
-	0x41, 0x48,
-	0x80, 0x09,
+var brightnessPayloadTemplate = []byte{
+	0x80,
+	0x09,
 	0x00,
 	0x90,
 	0x80,
@@ -24,11 +23,7 @@ var brightnessCmdTemplate = []byte{
 	0x00,
 	0x00,
 	0x00,
-	0x00, // ← BRIGHTNESS LEVEL (offset 12)
-	0xE2,
-	0xCB,
-	0x4D,
-	0x49,
+	0x00, // brightness
 }
 
 type Device struct {
@@ -64,35 +59,29 @@ func (d *Device) Sleep() error {
 func (d *Device) Handshake() error {
 	fmt.Fprintln(d.log, "→ Handshake")
 
-	if _, err := d.serial.Write(handshakeCmd); err != nil {
+	frame := BuildFrame(handshakePayload)
+
+	if err := d.serial.Write(frame); err != nil {
 		return err
 	}
 
-	resp, err := ReadResponse(d.serial, 64)
-	if err != nil {
-		return err
-	}
-
-	fmt.Fprintf(d.log, "← Handshake OK: % X\n", resp)
-	return nil
+	return ExpectACK(d.serial, 500*time.Millisecond)
 }
 
 func (d *Device) SetBrightness(level uint8) error {
-	if level > 100 {
-		return fmt.Errorf("brightness out of range: %d", level)
-	}
+	payload := make([]byte, len(brightnessPayloadTemplate))
+	copy(payload, brightnessPayloadTemplate)
+	payload[10] = level
 
-	cmd := make([]byte, len(brightnessCmdTemplate))
-	copy(cmd, brightnessCmdTemplate)
-	cmd[12] = level
+	frame := BuildFrame(payload)
 
 	fmt.Fprintf(d.log, "→ Brightness %d\n", level)
 
-	if _, err := d.serial.Write(cmd); err != nil {
+	if err := d.serial.Write(frame); err != nil {
 		return err
 	}
 
-	return ExpectACK(d.serial)
+	return ExpectACK(d.serial, 500*time.Millisecond)
 }
 
 func AutoConnect(baud int) (*Device, error) {
