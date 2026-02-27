@@ -106,6 +106,7 @@ func AutoConnect(baud int) (*Device, error) {
 
 		port, err := OpenSerial(path, baud)
 		if err != nil {
+			fmt.Println(err.Error())
 			continue
 		}
 
@@ -114,6 +115,8 @@ func AutoConnect(baud int) (*Device, error) {
 		if err := dev.Handshake(); err == nil {
 			fmt.Println("✓ connected to", path)
 			return dev, nil
+		} else {
+			fmt.Println(err.Error())
 		}
 
 		dev.Close()
