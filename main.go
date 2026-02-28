@@ -13,12 +13,11 @@ import (
 // o en el flag -mode para daemon/ui.
 //
 // Uso:
-//
-//	sidecar                          → CLI help
-//	sidecar -cmd on                  → CLI
-//	sidecar -mode daemon             → daemon
-//	sidecar -mode daemon -interval 3s
-//	sidecar -mode ui                 → UI webview
+//   sidecar                          → CLI help
+//   sidecar -cmd on                  → CLI
+//   sidecar -mode daemon             → daemon
+//   sidecar -mode daemon -interval 3s
+//   sidecar -mode ui                 → UI webview
 func main() {
 	// Detectar modo sin usar flag.Parse() para no interferir con los flags del CLI.
 	// El modo se pasa como PRIMER argumento si es "daemon" o "ui",
@@ -65,18 +64,15 @@ func detectMode(args []string) string {
 // runDaemonMode parsea los flags propios del daemon y arranca el loop.
 func runDaemonMode(args []string) error {
 	// Parseo manual simple para no depender de flag global
-	device := "auto"
-	baud := 115200
+	device   := "auto"
+	baud     := 115200
 	interval := 5 * time.Second
 
 	for i := 1; i < len(args); i++ {
 		arg := args[i]
 		switch {
 		case arg == "-device" || arg == "--device":
-			if i+1 < len(args) {
-				device = args[i+1]
-				i++
-			}
+			if i+1 < len(args) { device = args[i+1]; i++ }
 		case len(arg) > 8 && arg[:8] == "-device=":
 			device = arg[8:]
 		case arg == "-interval" || arg == "--interval":
