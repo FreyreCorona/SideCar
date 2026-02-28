@@ -1,9 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/draw"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"log"
 	"net/http"
@@ -22,12 +28,12 @@ import (
 // ── Estado global de la UI ───────────────────────────────────
 
 type UIState struct {
-	mu          sync.Mutex
-	dev         *core.Device
-	daemonCtx   context.Context
+	mu           sync.Mutex
+	dev          *core.Device
+	daemonCtx    context.Context
 	daemonCancel context.CancelFunc
-	win         wv.WebView
-	uploadProg  func(int)
+	win          wv.WebView
+	uploadProg   func(int)
 }
 
 var uiState UIState
@@ -47,12 +53,11 @@ func runUI() error {
 	}
 
 	w.SetTitle("SideCar")
-	w.SetSize(900, 580, wv.HintNone)
+	w.SetSize(960, 620, wv.HintNone)
 
-	// ── HTTP server para servir los archivos de UI ─────────────
+	// ── HTTP server ────────────────────────────────────────────
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.Dir("ui")))
-
 	mux.HandleFunc("/statics/", func(wr http.ResponseWriter, r *http.Request) {
 		rel := r.URL.Path[len("/statics/"):]
 		http.ServeFile(wr, r, filepath.Join("ui", "statics", rel))
@@ -68,10 +73,8 @@ func runUI() error {
 
 	// ── Bindings Go → JS ──────────────────────────────────────
 
-	// getCurrentFrame: retorna el frame de la vista actual para el canvas
 	w.Bind("getCurrentFrame", getCurrentFrame)
 
-	// nextView / setView
 	w.Bind("nextView", func() {
 		nextView()
 		if onViewChange != nil {
@@ -84,13 +87,13 @@ func runUI() error {
 		}
 	})
 
-	// startDaemon: conecta al device e inicia el loop de métricas
+	// startDaemon: conecta al device e inicia el loop de métricas usando
+	// la MISMA conexión. Sin doble-connect.
 	w.Bind("startDaemon", func() bool {
 		uiState.mu.Lock()
 		defer uiState.mu.Unlock()
 
 		if uiState.daemonCancel != nil {
-			// ya corriendo
 			return true
 		}
 
@@ -105,23 +108,20 @@ func runUI() error {
 		uiState.daemonCtx = ctx
 		uiState.daemonCancel = cancel
 
-		go RunDaemon(ctx, DaemonConfig{
-			Device:   "auto",
-			Baud:     115200,
-			Interval: 5 * time.Second,
-			Log:      io.Discard,
-		})
+		go runUIMetricsLoop(ctx, dev, w)
 
 		return true
 	})
 
-	// stopDaemon: detiene el daemon
+	// stopDaemon: detiene el daemon y cierra el device.
 	w.Bind("stopDaemon", func() {
 		uiState.mu.Lock()
 		defer uiState.mu.Unlock()
+
 		if uiState.daemonCancel != nil {
 			uiState.daemonCancel()
 			uiState.daemonCancel = nil
+			uiState.daemonCtx = nil
 		}
 		if uiState.dev != nil {
 			uiState.dev.Close()
@@ -129,13 +129,13 @@ func runUI() error {
 		}
 	})
 
-	// getStats: retorna métricas actuales
+	// getStats: lee métricas del sistema (no requiere device)
 	w.Bind("getStats", func() map[string]interface{} {
 		cpu := metrics.CollectCPUMetrics()
 		mem := metrics.CollectMemoryMetrics()
 		bat := metrics.CollectBatteryMetrics()
 		net := metrics.CollectNetworkMetrics()
-		up  := metrics.CollectUptimeMetrics()
+		up := metrics.CollectUptimeMetrics()
 
 		ramPct := 0
 		if mem.TotalMB > 0 {
@@ -143,21 +143,32 @@ func runUI() error {
 		}
 
 		return map[string]interface{}{
-			"cpu":      cpu.UsagePercent,
-			"temp":     cpu.Temperature,
-			"ramUsed":  mem.UsedMB,
-			"ramTotal": mem.TotalMB,
-			"ramPct":   ramPct,
-			"battery":  bat.Capacity,
+			"cpu":       cpu.UsagePercent,
+			"temp":      cpu.Temperature,
+			"ramUsed":   mem.UsedMB,
+			"ramTotal":  mem.TotalMB,
+			"ramPct":    ramPct,
+			"battery":   bat.Capacity,
 			"batStatus": bat.Status,
-			"netIface": net.Interface,
-			"rxBytes":  net.RXBytes,
-			"txBytes":  net.TXBytes,
-			"uptime":   up.Seconds,
+			"netIface":  net.Interface,
+			"rxBytes":   net.RXBytes,
+			"txBytes":   net.TXBytes,
+			"uptime":    up.Seconds,
 		}
 	})
 
-	// setBrightness
+	// pingDevice: verifica si el device responde (para status)
+	w.Bind("pingDevice", func() bool {
+		uiState.mu.Lock()
+		dev := uiState.dev
+		uiState.mu.Unlock()
+		if dev == nil {
+			return false
+		}
+		_, err := dev.Handshake()
+		return err == nil
+	})
+
 	w.Bind("setBrightness", func(level int) {
 		uiState.mu.Lock()
 		dev := uiState.dev
@@ -176,18 +187,12 @@ func runUI() error {
 		}
 	})
 
-	// wake / sleep / reboot
-	w.Bind("wake", func() {
-		withDev(func(d *core.Device) { d.Wake() })
-	})
-	w.Bind("sleep", func() {
-		withDev(func(d *core.Device) { d.Sleep() })
-	})
+	w.Bind("wake", func() { withDev(func(d *core.Device) { d.Wake() }) })
+	w.Bind("sleep", func() { withDev(func(d *core.Device) { d.Sleep() }) })
 	w.Bind("reboot", func() {
 		withDev(func(d *core.Device) { d.Reboot() })
 	})
 
-	// showPage
 	w.Bind("showPage", func(page int) {
 		withDev(func(d *core.Device) {
 			d.WriteNumRegisters([]core.NumRegister{
@@ -196,7 +201,6 @@ func runUI() error {
 		})
 	})
 
-	// uploadFile: recibe []int (bytes) desde JS y sube al device
 	w.Bind("uploadFile", func(bytesArr []int, fileType string) map[string]interface{} {
 		uiState.mu.Lock()
 		dev := uiState.dev
@@ -226,7 +230,77 @@ func runUI() error {
 		return map[string]interface{}{"ok": true}
 	})
 
-	// listPorts: retorna los puertos seriales disponibles
+	// convertImageToACF: convierte imagen (base64) a RGB565 raw para la minitela.
+	// El display es 240×240. Retorna los bytes como []int para JS.
+	w.Bind("convertImageToACF", func(b64data string, targetW int, targetH int) map[string]interface{} {
+		if targetW <= 0 {
+			targetW = 240
+		}
+		if targetH <= 0 {
+			targetH = 240
+		}
+
+		raw, err := base64.StdEncoding.DecodeString(b64data)
+		if err != nil {
+			return map[string]interface{}{"error": "base64 decode: " + err.Error()}
+		}
+
+		img, format, err := image.Decode(bytes.NewReader(raw))
+		if err != nil {
+			return map[string]interface{}{"error": "image decode: " + err.Error()}
+		}
+		log.Printf("convertImageToACF: format=%s bounds=%v → %dx%d", format, img.Bounds(), targetW, targetH)
+
+		bounds := img.Bounds()
+		srcW := bounds.Max.X - bounds.Min.X
+		srcH := bounds.Max.Y - bounds.Min.Y
+
+		// Escalar con nearest-neighbor si es necesario.
+		var rgba *image.RGBA
+		if srcW != targetW || srcH != targetH {
+			dst := image.NewRGBA(image.Rect(0, 0, targetW, targetH))
+			for y := 0; y < targetH; y++ {
+				for x := 0; x < targetW; x++ {
+					srcX := bounds.Min.X + x*srcW/targetW
+					srcY := bounds.Min.Y + y*srcH/targetH
+					dst.Set(x, y, img.At(srcX, srcY))
+				}
+			}
+			rgba = dst
+		} else {
+			rgba = image.NewRGBA(bounds)
+			draw.Draw(rgba, bounds, img, bounds.Min, draw.Src)
+		}
+
+		// Convertir a RGB565 big-endian: RRRRR GGGGGG BBBBB
+		pixelCount := targetW * targetH
+		acf := make([]byte, pixelCount*2)
+		for y := 0; y < targetH; y++ {
+			for x := 0; x < targetW; x++ {
+				c := rgba.RGBAAt(x, y)
+				r5 := uint16(c.R) >> 3
+				g6 := uint16(c.G) >> 2
+				b5 := uint16(c.B) >> 3
+				rgb565 := (r5 << 11) | (g6 << 5) | b5
+				idx := (y*targetW + x) * 2
+				acf[idx] = byte(rgb565 >> 8)
+				acf[idx+1] = byte(rgb565)
+			}
+		}
+
+		result := make([]int, len(acf))
+		for i, b := range acf {
+			result[i] = int(b)
+		}
+
+		return map[string]interface{}{
+			"data":   result,
+			"width":  targetW,
+			"height": targetH,
+			"size":   len(acf),
+		}
+	})
+
 	w.Bind("listPorts", func() []string {
 		ports, err := core.FindSerialDevices()
 		if err != nil {
@@ -235,7 +309,6 @@ func runUI() error {
 		return ports
 	})
 
-	// setImage: manejo de imagen personalizada (futuro)
 	w.Bind("setImage", func(payload string) {
 		var p struct {
 			Asset string `json:"asset"`
@@ -244,10 +317,8 @@ func runUI() error {
 			log.Println("setImage: parse:", err)
 		}
 		log.Println("setImage:", p.Asset)
-		// TODO: conectar con upload de ACF personalizado
 	})
 
-	// onViewChange hook
 	onViewChange = func() {
 		w.Dispatch(func() {
 			w.Eval(`window.onViewChanged && window.onViewChanged()`)
@@ -257,6 +328,44 @@ func runUI() error {
 	w.Navigate("http://127.0.0.1:8481")
 	w.Run()
 	return nil
+}
+
+// ── runUIMetricsLoop ──────────────────────────────────────────
+
+// runUIMetricsLoop sincroniza métricas usando el device ya conectado.
+// Si el device falla, limpia el estado y notifica a la UI.
+func runUIMetricsLoop(ctx context.Context, dev *core.Device, w wv.WebView) {
+	defer func() {
+		w.Dispatch(func() {
+			w.Eval(`window.onDaemonStopped && window.onDaemonStopped()`)
+		})
+	}()
+
+	if err := syncDateTime(dev); err != nil {
+		log.Println("runUIMetricsLoop: syncDateTime:", err)
+	}
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := syncCycle(dev, &DaemonConfig{Interval: 5 * time.Second, Log: io.Discard}); err != nil {
+				log.Println("runUIMetricsLoop: syncCycle error — device disconnected:", err)
+				uiState.mu.Lock()
+				uiState.dev = nil
+				if uiState.daemonCancel != nil {
+					uiState.daemonCancel()
+					uiState.daemonCancel = nil
+				}
+				uiState.mu.Unlock()
+				return
+			}
+		}
+	}
 }
 
 // ── Helpers ───────────────────────────────────────────────────

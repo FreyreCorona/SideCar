@@ -1,3 +1,5 @@
+//go:build linux
+
 package metrics
 
 import (
@@ -8,21 +10,11 @@ import (
 	"time"
 )
 
-type CPUMetrics struct {
-	UsagePercent float64
-	Temperature  float64
-}
-
 func CollectCPUMetrics() CPUMetrics {
 	return CPUMetrics{
 		UsagePercent: getCPUUsage(),
 		Temperature:  getCPUTemperature(),
 	}
-}
-
-type MemoryMetrics struct {
-	UsedMB  int
-	TotalMB int
 }
 
 func CollectMemoryMetrics() MemoryMetrics {
@@ -33,20 +25,10 @@ func CollectMemoryMetrics() MemoryMetrics {
 	}
 }
 
-type UptimeMetrics struct {
-	Seconds int64
-}
-
 func CollectUptimeMetrics() UptimeMetrics {
 	return UptimeMetrics{
 		Seconds: getUptime(),
 	}
-}
-
-type NetworkMetrics struct {
-	Interface string
-	RXBytes   uint64
-	TXBytes   uint64
 }
 
 func CollectNetworkMetrics() NetworkMetrics {
@@ -85,11 +67,6 @@ func CollectNetworkMetrics() NetworkMetrics {
 	}
 
 	return NetworkMetrics{}
-}
-
-type BatteryMetrics struct {
-	Capacity int
-	Status   string
 }
 
 func CollectBatteryMetrics() BatteryMetrics {
