@@ -2,33 +2,197 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Side Car Controller</title>
+  <title>SideCar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,600;1,9..40,300&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <main class="app">
-    <aside class="controls">
-        <h2>Available Assets</h2>
-          <ul id="assetList" class="asset-list">
-            <li data-view="cpu" class="selected">CPU / RAM / Temp</li>
-            <li data-view="network">Network / Battery / Uptime</li>
-            <li data-view="image">Set Image</li>
-          </ul>
-          <input type="file" id="imageInput" accept="image/*" style="display:none" />
+  <div class="shell">
 
-        <button id="setBtn" class="primary-btn" disabled>
-          Set Asset
-        </button>
-    </aside>
+    <nav class="sidebar">
+      <div class="brand">
+        <span class="brand-icon">▣</span>
+        <span class="brand-name">SideCar</span>
+      </div>
 
-    <section class="preview">
-      <canvas id="previewCanvas"></canvas>
-    </section>
-  </main>
+      <div class="device-pill" id="devicePill">
+        <span class="dot" id="statusDot"></span>
+        <span id="statusLabel">Disconnected</span>
+      </div>
+
+      <ul class="nav-list">
+        <li class="nav-item active" data-tab="monitor">
+          <span class="nav-icon">◎</span> Monitor
+        </li>
+        <li class="nav-item" data-tab="upload">
+          <span class="nav-icon">⬆</span> Upload
+        </li>
+        <li class="nav-item" data-tab="settings">
+          <span class="nav-icon">⚙</span> Settings
+        </li>
+      </ul>
+
+      <div class="sidebar-footer">
+        <button class="daemon-btn" id="daemonBtn">▶ Start Daemon</button>
+        <div class="version" id="versionLabel">SideCar</div>
+      </div>
+    </nav>
+
+    <main class="main">
+
+      <!-- MONITOR TAB -->
+      <div class="tab-panel active" id="tab-monitor">
+        <div class="panel-header">
+          <h1>System Monitor</h1>
+          <p class="subtext">Live data being pushed to the mini screen</p>
+        </div>
+
+        <div class="monitor-layout">
+          <div class="screen-preview">
+            <div class="screen-bezel">
+              <div class="screen-face">
+                <canvas id="previewCanvas" width="240" height="240"></canvas>
+              </div>
+            </div>
+            <div class="screen-controls">
+              <button class="ctrl-btn" id="prevViewBtn">◀</button>
+              <span class="page-label" id="pageLabel">View 1</span>
+              <button class="ctrl-btn" id="nextViewBtn">▶</button>
+            </div>
+            <div class="brightness-row">
+              <label class="ctrl-label">Brightness</label>
+              <input type="range" min="0" max="255" value="100" class="brightness-slider" id="brightnessSlider" />
+              <span class="brightness-val" id="brightnessVal">100</span>
+            </div>
+          </div>
+
+          <div class="stats-side">
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-label">CPU</div>
+                <div class="stat-bar-wrap"><div class="stat-bar" id="barCPU"></div></div>
+                <div class="stat-value" id="valCPU">—</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">RAM</div>
+                <div class="stat-bar-wrap"><div class="stat-bar" id="barRAM"></div></div>
+                <div class="stat-value" id="valRAM">—</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Battery</div>
+                <div class="stat-bar-wrap"><div class="stat-bar" id="barBAT"></div></div>
+                <div class="stat-value" id="valBAT">—</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Network</div>
+                <div class="stat-value wide" id="valNET">—</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Temp</div>
+                <div class="stat-value wide" id="valTEMP">—</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Uptime</div>
+                <div class="stat-value wide" id="valUPTIME">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- UPLOAD TAB -->
+      <div class="tab-panel" id="tab-upload">
+        <div class="panel-header">
+          <h1>Upload</h1>
+          <p class="subtext">Send .acf texture or firmware files to the device</p>
+        </div>
+
+        <div class="upload-zone" id="uploadZone">
+          <div class="upload-icon">⬆</div>
+          <div class="upload-label">Drop file here</div>
+          <div class="upload-sub">.acf · .bin — or click to browse</div>
+          <input type="file" id="fileInput" style="display:none" />
+        </div>
+
+        <div class="upload-meta" id="uploadMeta" style="display:none">
+          <span class="file-name" id="uploadFileName"></span>
+          <span class="file-size" id="uploadFileSize"></span>
+        </div>
+
+        <div class="upload-options">
+          <div class="option-row">
+            <label class="ctrl-label">File Type</label>
+            <select class="select-input" id="fileTypeSelect">
+              <option value="texture">Texture (.acf)</option>
+              <option value="texture_gif">Texture GIF (.acf)</option>
+              <option value="cpu1">CPU1 Firmware</option>
+              <option value="bootloader">Bootloader</option>
+              <option value="cpu0_config">CPU0 Config</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="progress-wrap" id="progressWrap" style="display:none">
+          <div class="progress-track">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+          <span class="progress-pct" id="progressPct">0%</span>
+        </div>
+
+        <button class="upload-btn" id="uploadBtn" disabled>Upload to Device</button>
+
+        <div class="upload-log" id="uploadLog"></div>
+      </div>
+
+      <!-- SETTINGS TAB -->
+      <div class="tab-panel" id="tab-settings">
+        <div class="panel-header">
+          <h1>Settings</h1>
+          <p class="subtext">Device and daemon configuration</p>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-label">Serial Port</div>
+          <div class="settings-row">
+            <select class="select-input" id="portSelect">
+              <option value="auto">Auto-detect</option>
+            </select>
+            <button class="sm-btn" id="refreshPortsBtn">Refresh</button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-label">Sync Interval</div>
+          <div class="settings-row">
+            <input type="number" class="num-input" id="intervalInput" value="5" min="1" max="60" />
+            <span class="unit-label">seconds</span>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-label">Device Page</div>
+          <div class="settings-row">
+            <input type="number" class="num-input" id="pageInput" value="1" min="1" max="10" />
+            <button class="sm-btn" id="setPageBtn">Set</button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-label">Device Actions</div>
+          <div class="action-row">
+            <button class="action-btn" id="wakeBtn">Wake</button>
+            <button class="action-btn" id="sleepBtn">Sleep</button>
+            <button class="action-btn danger" id="rebootBtn">Reboot</button>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
 
   <script src="renderers/text.js"></script>
   <script src="renderers/image.js"></script>
   <script src="app.js"></script>
-
 </body>
 </html>
