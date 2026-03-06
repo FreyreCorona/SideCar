@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"embed"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -11,10 +12,10 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -24,6 +25,9 @@ import (
 	wv "github.com/abemedia/go-webview"
 	_ "github.com/abemedia/go-webview/embedded"
 )
+
+//go:embed ui/*
+var uiFS embed.FS
 
 // ── Global UI state ───────────────────────────────────────────
 
@@ -56,12 +60,12 @@ func runUI() error {
 	w.SetSize(960, 620, wv.HintNone)
 
 	// ── HTTP server ────────────────────────────────────────────
+	sub, err := fs.Sub(uiFS, "ui")
+	if err != nil {
+		log.Fatal(err)
+	}
 	mux := http.NewServeMux()
-	mux.Handle("/", http.FileServer(http.Dir("ui")))
-	mux.HandleFunc("/statics/", func(wr http.ResponseWriter, r *http.Request) {
-		rel := r.URL.Path[len("/statics/"):]
-		http.ServeFile(wr, r, filepath.Join("ui", "statics", rel))
-	})
+	mux.Handle("/", http.FileServer(http.FS(sub)))
 
 	server := &http.Server{Addr: "127.0.0.1:8481", Handler: mux}
 	go func() {

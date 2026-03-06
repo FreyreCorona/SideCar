@@ -56,7 +56,7 @@ func detectMode(args []string) string {
 			return arg[6:] // -mode=daemon
 		}
 	}
-	return "cli"
+	return "ui"
 }
 
 // runDaemonMode parses daemon-specific flags and starts the loop.
