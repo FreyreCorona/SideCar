@@ -18,27 +18,37 @@
 
       <div class="device-pill" id="devicePill">
         <span class="dot" id="statusDot"></span>
-        <span id="statusLabel">Disconnected</span>
+        <span id="statusLabel" data-i18n="nav.disconnected">Disconnected</span>
       </div>
 
       <ul class="nav-list">
         <li class="nav-item active" data-tab="monitor">
-          <span class="nav-icon">◎</span> Monitor
+          <span class="nav-icon">◎</span> <span data-i18n="nav.monitor">Monitor</span>
         </li>
         <li class="nav-item" data-tab="upload">
-          <span class="nav-icon">⬆</span> Upload
+          <span class="nav-icon">⬆</span> <span data-i18n="nav.upload">Upload</span>
         </li>
         <li class="nav-item" data-tab="settings">
-          <span class="nav-icon">⚙</span> Settings
+          <span class="nav-icon">⚙</span> <span data-i18n="nav.settings">Settings</span>
         </li>
       </ul>
 
       <div class="sidebar-footer">
         <button class="theme-toggle" id="themeToggle">
           <span class="theme-icon" id="themeIcon">☀</span>
-          <span id="themeLabel">Light mode</span>
+          <span id="themeLabel" data-i18n="nav.lightMode">Light mode</span>
         </button>
-        <button class="daemon-btn" id="daemonBtn">▶ Start Daemon</button>
+        <button class="daemon-btn" id="daemonBtn" data-i18n="nav.startDaemon">▶ Start Daemon</button>
+
+        <!-- Language selector -->
+        <div class="lang-row">
+          <span class="ctrl-label" data-i18n="lang.label">Language</span>
+          <select class="select-input select-input--sm" id="langSelect">
+            <option value="en">English</option>
+            <option value="pt-BR">Português (BR)</option>
+          </select>
+        </div>
+
         <div class="version" id="versionLabel">SideCar v0.1</div>
       </div>
     </nav>
@@ -48,8 +58,8 @@
       <!-- MONITOR TAB -->
       <div class="tab-panel active" id="tab-monitor">
         <div class="panel-header">
-          <h1>System Monitor</h1>
-          <p class="subtext">Live metrics pushed to the mini screen</p>
+          <h1 data-i18n="monitor.title">System Monitor</h1>
+          <p class="subtext" data-i18n="monitor.subtitle">Live metrics pushed to the mini screen</p>
         </div>
 
         <div class="monitor-layout">
@@ -61,11 +71,11 @@
             </div>
             <div class="screen-controls">
               <button class="ctrl-btn" id="prevViewBtn">◀</button>
-              <span class="page-label" id="pageLabel">CPU &amp; RAM</span>
+              <span class="page-label" id="pageLabel" data-i18n="monitor.pageCPU">CPU &amp; RAM</span>
               <button class="ctrl-btn" id="nextViewBtn">▶</button>
             </div>
             <div class="brightness-row">
-              <label class="ctrl-label">Brightness</label>
+              <label class="ctrl-label" data-i18n="monitor.brightness">Brightness</label>
               <input type="range" min="0" max="100" value="100" class="brightness-slider" id="brightnessSlider" />
               <span class="brightness-val" id="brightnessVal">100</span>
             </div>
@@ -77,55 +87,55 @@
               <!-- CPU -->
               <div class="stat-card">
                 <div class="stat-header">
-                  <span class="stat-label">CPU</span>
+                  <span class="stat-label" data-i18n="monitor.cpu">CPU</span>
                   <span class="stat-icon">⬡</span>
                 </div>
                 <canvas class="stat-sparkline" id="spkCPU"></canvas>
                 <div class="stat-bar-wrap"><div class="stat-bar" id="barCPU"></div></div>
                 <div class="stat-value" id="valCPU">—</div>
-                <div class="stat-sub" id="subCPU">Usage</div>
+                <div class="stat-sub" id="subCPU" data-i18n="monitor.cpuUsage">Usage</div>
               </div>
 
               <!-- RAM -->
               <div class="stat-card">
                 <div class="stat-header">
-                  <span class="stat-label">RAM</span>
+                  <span class="stat-label" data-i18n="monitor.ram">RAM</span>
                   <span class="stat-icon">▤</span>
                 </div>
                 <canvas class="stat-sparkline" id="spkRAM"></canvas>
                 <div class="stat-bar-wrap"><div class="stat-bar" id="barRAM"></div></div>
                 <div class="stat-value" id="valRAM">—</div>
-                <div class="stat-sub" id="subRAM">Used / Total</div>
+                <div class="stat-sub" id="subRAM" data-i18n="monitor.ramUsed">Used / Total</div>
               </div>
 
               <!-- Battery -->
               <div class="stat-card">
                 <div class="stat-header">
-                  <span class="stat-label">Battery</span>
+                  <span class="stat-label" data-i18n="monitor.battery">Battery</span>
                   <span class="stat-icon">⚡</span>
                 </div>
                 <canvas class="stat-sparkline" id="spkBAT"></canvas>
                 <div class="stat-bar-wrap"><div class="stat-bar" id="barBAT"></div></div>
                 <div class="stat-value" id="valBAT">—</div>
-                <div class="stat-sub" id="subBAT">Status</div>
+                <div class="stat-sub" id="subBAT" data-i18n="monitor.batStatus">Status</div>
               </div>
 
               <!-- Temperature -->
               <div class="stat-card">
                 <div class="stat-header">
-                  <span class="stat-label">Temp</span>
+                  <span class="stat-label" data-i18n="monitor.temp">Temp</span>
                   <span class="stat-icon">🌡</span>
                 </div>
                 <canvas class="stat-sparkline" id="spkTEMP"></canvas>
                 <div class="stat-bar-wrap"><div class="stat-bar" id="barTEMP"></div></div>
                 <div class="stat-value medium" id="valTEMP">—</div>
-                <div class="stat-sub">CPU Temperature</div>
+                <div class="stat-sub" data-i18n="monitor.tempSub">CPU Temperature</div>
               </div>
 
               <!-- Network -->
               <div class="stat-card">
                 <div class="stat-header">
-                  <span class="stat-label">Network</span>
+                  <span class="stat-label" data-i18n="monitor.network">Network</span>
                   <span class="stat-icon">⇅</span>
                 </div>
                 <div class="stat-value wide" style="margin-bottom:6px" id="valNETIFACE">—</div>
@@ -138,11 +148,11 @@
               <!-- Uptime -->
               <div class="stat-card">
                 <div class="stat-header">
-                  <span class="stat-label">Uptime</span>
+                  <span class="stat-label" data-i18n="monitor.uptime">Uptime</span>
                   <span class="stat-icon">⏱</span>
                 </div>
                 <div class="stat-value medium" id="valUPTIME">—</div>
-                <div class="stat-sub">Since last boot</div>
+                <div class="stat-sub" data-i18n="monitor.uptimeSub">Since last boot</div>
               </div>
 
             </div>
@@ -153,8 +163,8 @@
       <!-- UPLOAD TAB -->
       <div class="tab-panel" id="tab-upload">
         <div class="panel-header">
-          <h1>Upload</h1>
-          <p class="subtext">Send a texture image or firmware file to the device</p>
+          <h1 data-i18n="upload.title">Upload</h1>
+          <p class="subtext" data-i18n="upload.subtitle">Send a texture image or firmware file to the device</p>
         </div>
 
         <div class="upload-layout">
@@ -162,8 +172,8 @@
             <!-- Drop zone -->
             <div class="upload-zone" id="uploadZone">
               <div class="upload-icon">⬆</div>
-              <div class="upload-label">Drop file here</div>
-              <div class="upload-sub">.png · .jpg · .acf · .bin — or click to browse</div>
+              <div class="upload-label" data-i18n="upload.dropZone">Drop file here</div>
+              <div class="upload-sub" data-i18n="upload.dropSub">.png · .jpg · .acf · .bin — or click to browse</div>
               <input type="file" id="fileInput" style="display:none" accept=".png,.jpg,.jpeg,.acf,.bin" />
             </div>
 
@@ -174,7 +184,7 @@
 
             <div class="upload-options">
               <div class="option-row">
-                <span class="option-label">Type</span>
+                <span class="option-label" data-i18n="upload.typeLabel">Type</span>
                 <select class="select-input" id="fileTypeSelect">
                   <option value="texture">Texture (.acf)</option>
                   <option value="texture_gif">Texture GIF (.acf)</option>
@@ -186,7 +196,7 @@
             </div>
 
             <!-- Convert button (only shown for image files) -->
-            <button class="convert-btn" id="convertBtn" disabled style="display:none">
+            <button class="convert-btn" id="convertBtn" disabled style="display:none" data-i18n="upload.convertBtn">
               ⟳ Convert to ACF (RGB565)
             </button>
 
@@ -197,7 +207,7 @@
               <span class="progress-pct" id="progressPct">0%</span>
             </div>
 
-            <button class="upload-btn" id="uploadBtn" disabled>Upload to Device</button>
+            <button class="upload-btn" id="uploadBtn" disabled data-i18n="upload.uploadBtn">Upload to Device</button>
 
             <div class="upload-log" id="uploadLog"></div>
           </div>
@@ -212,11 +222,11 @@
 
             <!-- Upload notes -->
             <div class="upload-log" style="min-height:80px;line-height:1.8">
-              <div style="color:var(--muted)">Image requirements:</div>
-              <div>· Recommended: <span style="color:var(--accent)">240 × 240 px</span></div>
-              <div>· Formats accepted: PNG, JPEG</div>
-              <div>· Convert first → uploads as RGB565 raw</div>
-              <div style="margin-top:6px;color:var(--muted)">.acf/.bin files upload directly</div>
+              <div style="color:var(--muted)" data-i18n="upload.imgReq">Image requirements:</div>
+              <div>· <span data-i18n="upload.imgSize">Recommended: <span style="color:var(--accent)">240 × 240 px</span></span></div>
+              <div>· <span data-i18n="upload.imgFmt">Formats accepted: PNG, JPEG</span></div>
+              <div>· <span data-i18n="upload.imgConvert">Convert first → uploads as RGB565 raw</span></div>
+              <div style="margin-top:6px;color:var(--muted)" data-i18n="upload.acfDirect">.acf/.bin files upload directly</div>
             </div>
           </div>
         </div>
@@ -225,51 +235,67 @@
       <!-- SETTINGS TAB -->
       <div class="tab-panel" id="tab-settings">
         <div class="panel-header">
-          <h1>Settings</h1>
-          <p class="subtext">Device and daemon configuration</p>
+          <h1 data-i18n="settings.title">Settings</h1>
+          <p class="subtext" data-i18n="settings.subtitle">Device and daemon configuration</p>
         </div>
 
         <div class="settings-section">
-          <div class="settings-label">Serial Port</div>
+          <div class="settings-label" data-i18n="settings.port">Serial Port</div>
           <div class="settings-row">
             <select class="select-input" id="portSelect">
-              <option value="auto">Auto-detect</option>
+              <option value="auto" data-i18n="settings.portAuto">Auto-detect</option>
             </select>
-            <button class="sm-btn" id="refreshPortsBtn">Refresh</button>
+            <button class="sm-btn" id="refreshPortsBtn" data-i18n="settings.refresh">Refresh</button>
           </div>
         </div>
 
         <div class="settings-section">
-          <div class="settings-label">Sync Interval</div>
+          <div class="settings-label" data-i18n="settings.interval">Sync Interval</div>
           <div class="settings-row">
             <input type="number" class="num-input" id="intervalInput" value="5" min="1" max="60" />
-            <span class="unit-label">seconds</span>
+            <span class="unit-label" data-i18n="settings.seconds">seconds</span>
           </div>
         </div>
 
         <div class="settings-section">
-          <div class="settings-label">Device Page</div>
+          <div class="settings-label" data-i18n="settings.page">Device Page</div>
           <div class="settings-row">
             <input type="number" class="num-input" id="pageInput" value="1" min="1" max="10" />
-            <button class="sm-btn" id="setPageBtn">Set</button>
+            <button class="sm-btn" id="setPageBtn" data-i18n="settings.setPage">Set</button>
           </div>
         </div>
 
         <div class="settings-section">
-          <div class="settings-label">Device Actions</div>
+          <div class="settings-label" data-i18n="settings.actions">Device Actions</div>
           <div class="action-row">
-            <button class="action-btn" id="wakeBtn">Wake</button>
-            <button class="action-btn" id="sleepBtn">Sleep</button>
-            <button class="action-btn danger" id="rebootBtn">Reboot</button>
+            <button class="action-btn" id="wakeBtn" data-i18n="settings.wake">Wake</button>
+            <button class="action-btn" id="sleepBtn" data-i18n="settings.sleep">Sleep</button>
+            <button class="action-btn danger" id="rebootBtn" data-i18n="settings.reboot">Reboot</button>
           </div>
         </div>
+
       </div>
 
     </main>
   </div>
 
+  <script src="i18n.js"></script>
   <script src="renderers/text.js"></script>
   <script src="renderers/image.js"></script>
   <script src="app.js"></script>
+  <script>
+    // Bootstrap i18n on load
+    document.addEventListener("DOMContentLoaded", () => {
+      i18n.applyToDOM();
+
+      // Wire up the language selector
+      const sel = document.getElementById("langSelect");
+      sel.value = i18n.getLocale();
+      sel.addEventListener("change", () => {
+        i18n.setLocale(sel.value);
+        document.documentElement.lang = sel.value === "pt-BR" ? "pt" : "en";
+      });
+    });
+  </script>
 </body>
 </html>
