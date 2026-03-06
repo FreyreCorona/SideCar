@@ -33,7 +33,7 @@ jobs:
           if [ "${{ matrix.goos }}" = "windows" ]; then EXT=".exe"; fi
           
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
-          go build -o dist/${{github.event.repository.name}}-${{ matrix.goos }}-${{ matrix.goarch }}$EXT ./cmd/${{github.event.repository.name}}
+          go build -o dist/${{github.event.repository.name}}-${{ matrix.goos }}-${{ matrix.goarch }}$EXT .
 
       - name: Upload Release
         uses: softprops/action-gh-release@v2
