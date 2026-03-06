@@ -5,8 +5,8 @@ import (
 	"fmt"
 )
 
-// CommandType representa el tipo de comando del protocolo Minitela.
-// Los comandos de respuesta siguen el patrón: tipo | 0x0040
+// CommandType represents a command type in the Minitela protocol.
+// Response commands follow the pattern: type | 0x0040
 type CommandType uint16
 
 const (
@@ -61,7 +61,7 @@ func (c CommandType) String() string {
 	return fmt.Sprintf("Unknown(0x%04X)", uint16(c))
 }
 
-// IsResponse devuelve true si el CommandType corresponde a una respuesta del dispositivo.
+// IsResponse returns true if the CommandType corresponds to a device response.
 func (c CommandType) IsResponse() bool {
 	return c&0x00C0 == 0x00C0 || c&0x00B0 == 0x00B0
 }
@@ -70,10 +70,10 @@ func (c CommandType) IsResponse() bool {
 // Frame layout:
 //
 //	[0x41, 0x48] startFlag  (2)
-//	controlFlag             (2 BE): bits[14:0] = len(cmdType)+len(content), bit[15] = CRC habilitado
+//	controlFlag             (2 BE): bits[14:0] = len(cmdType)+len(content), bit[15] = CRC enabled
 //	cmdType                 (2 BE)
 //	content                 (N)
-//	crc16                   (2 BE, solo si CRC habilitado)
+//	crc16                   (2 BE, only if CRC enabled)
 //	[0x4D, 0x49] endFlag    (2)
 //
 // ─────────────────────────────────────────────
@@ -82,24 +82,24 @@ var (
 	frameEnd   = [2]byte{0x4D, 0x49}
 )
 
-// Command encapsula un comando listo para ser enviado.
+// Command encapsulates a command ready to be sent.
 type Command struct {
-	Type    CommandType
-	Content []byte
+	Type       CommandType
+	Content    []byte
 	crcEnabled bool
 }
 
-// NewCommand crea un comando sin CRC.
+// NewCommand creates a command without CRC.
 func NewCommand(t CommandType, content []byte) *Command {
 	return &Command{Type: t, Content: content}
 }
 
-// NewCommandWithCRC crea un comando con CRC habilitado.
+// NewCommandWithCRC creates a command with CRC enabled.
 func NewCommandWithCRC(t CommandType, content []byte) *Command {
 	return &Command{Type: t, Content: content, crcEnabled: true}
 }
 
-// Frame construye el frame completo listo para enviar por serial.
+// Frame builds the complete frame ready to be sent over serial.
 func (c *Command) Frame() []byte {
 	dataLen := 2 + len(c.Content) // cmdType (2) + content
 
@@ -108,7 +108,7 @@ func (c *Command) Frame() []byte {
 		controlFlag |= 0x8000
 	}
 
-	// Pre-calculamos tamaño para evitar allocations extra
+	// Pre-calculate size to avoid extra allocations
 	frameSize := 2 + 2 + 2 + len(c.Content) + 2 + 2 // start+ctrl+type+content+crc+end
 	if !c.crcEnabled {
 		frameSize -= 2
@@ -122,12 +122,12 @@ func (c *Command) Frame() []byte {
 	buf = append(buf, c.Content...)
 
 	if c.crcEnabled {
-		// CRC cubre: controlFlag + cmdType + content
-		crcInput := buf[2:] // desde controlFlag hasta el final actual
+		// CRC covers: controlFlag + cmdType + content
+		crcInput := buf[2:] // from controlFlag to end of current buffer
 		crc := crc16(crcInput)
 		buf = binary.BigEndian.AppendUint16(buf, crc)
 	} else {
-		// CRC deshabilitado: 2 bytes a cero
+		// CRC disabled: 2 zero bytes
 		buf = append(buf, 0x00, 0x00)
 	}
 
@@ -140,25 +140,25 @@ func (c *Command) Frame() []byte {
 // Response
 // ─────────────────────────────────────────────
 
-// Response representa una respuesta parseada del dispositivo.
+// Response represents a parsed response from the device.
 type Response struct {
 	Type    CommandType
 	Content []byte
 
-	// campos internos para validación
+	// internal fields for validation
 	crcEnabled bool
 	crcOK      bool
 }
 
-// ParseFrame parsea un frame raw en una Response.
-// Espera recibir exactamente un frame completo y válido.
+// ParseFrame parses a raw frame into a Response.
+// Expects to receive exactly one complete and valid frame.
 func ParseFrame(raw []byte) (*Response, error) {
 	if len(raw) < 8 {
-		return nil, fmt.Errorf("frame demasiado corto: %d bytes", len(raw))
+		return nil, fmt.Errorf("frame too short: %d bytes", len(raw))
 	}
 
 	if raw[0] != frameStart[0] || raw[1] != frameStart[1] {
-		return nil, fmt.Errorf("start flag inválido: %02X %02X", raw[0], raw[1])
+		return nil, fmt.Errorf("invalid start flag: %02X %02X", raw[0], raw[1])
 	}
 
 	controlFlag := binary.BigEndian.Uint16(raw[2:4])
@@ -166,14 +166,14 @@ func ParseFrame(raw []byte) (*Response, error) {
 	dataLen := int(controlFlag & 0x7FFF) // bits[14:0]
 
 	if dataLen < 2 {
-		return nil, fmt.Errorf("dataLen inválido: %d", dataLen)
+		return nil, fmt.Errorf("invalid dataLen: %d", dataLen)
 	}
 
-	contentLen := dataLen - 2 // dataLen incluye los 2 bytes de cmdType
+	contentLen := dataLen - 2 // dataLen includes the 2 cmdType bytes
 	expectedSize := 2 + 2 + 2 + contentLen + 2 + 2 // start+ctrl+type+content+crc+end
 
 	if len(raw) < expectedSize {
-		return nil, fmt.Errorf("frame incompleto: necesito %d bytes, tengo %d", expectedSize, len(raw))
+		return nil, fmt.Errorf("incomplete frame: need %d bytes, have %d", expectedSize, len(raw))
 	}
 
 	cmdType := CommandType(binary.BigEndian.Uint16(raw[4:6]))
@@ -190,7 +190,7 @@ func ParseFrame(raw []byte) (*Response, error) {
 
 	endOffset := 6 + contentLen + 2
 	if raw[endOffset] != frameEnd[0] || raw[endOffset+1] != frameEnd[1] {
-		return nil, fmt.Errorf("end flag inválido: %02X %02X", raw[endOffset], raw[endOffset+1])
+		return nil, fmt.Errorf("invalid end flag: %02X %02X", raw[endOffset], raw[endOffset+1])
 	}
 
 	return &Response{
@@ -201,15 +201,15 @@ func ParseFrame(raw []byte) (*Response, error) {
 	}, nil
 }
 
-// CRCValid devuelve si el CRC fue validado correctamente.
-// Si el frame no tiene CRC habilitado, devuelve true.
+// CRCValid returns whether the CRC was validated successfully.
+// If the frame has no CRC enabled, returns true.
 func (r *Response) CRCValid() bool {
 	return r.crcOK
 }
 
 // ─────────────────────────────────────────────
 // CRC-16/IBM (poly 0x8005, reflected input/output)
-// Equivalente al crc16() del paquete npm 'crc'
+// Equivalent to the crc16() from the npm package 'crc'
 // ─────────────────────────────────────────────
 
 func crc16(data []byte) uint16 {

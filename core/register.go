@@ -7,31 +7,31 @@ import (
 )
 
 // ─────────────────────────────────────────────
-// Tipos
+// Types
 // ─────────────────────────────────────────────
 
-// NumRegister es un par (id, valor) para una escritura/lectura numérica.
+// NumRegister is a (id, value) pair for a numeric read/write operation.
 type NumRegister struct {
 	RegID uint16
 	Value uint32
 }
 
-// Constantes del byte de cabecera del payload SET_REGISTER
-// Estructura del header byte: [replyFlag(1) | functionCode(3) | regCount(4)]
+// Constants for the header byte of the SET_REGISTER payload.
+// Header byte structure: [replyFlag(1) | functionCode(3) | regCount(4)]
 const (
-	regFuncWriteNum  = 0b1000 // functionCode para escribir numérico
-	regFuncReadNum   = 0b1100 // functionCode para leer numérico
-	regFuncWriteStr  = 0b1101 // functionCode para escribir string
-	regFuncReadStr   = 0b1110 // functionCode para leer string
-	maxRegsPerBatch  = 16
+	regFuncWriteNum = 0b1000 // functionCode for numeric write
+	regFuncReadNum  = 0b1100 // functionCode for numeric read
+	regFuncWriteStr = 0b1101 // functionCode for string write
+	regFuncReadStr  = 0b1110 // functionCode for string read
+	maxRegsPerBatch = 16
 )
 
 // ─────────────────────────────────────────────
-// Escritura numérica
+// Numeric write
 // ─────────────────────────────────────────────
 
-// WriteNumRegisters escribe registros numéricos. Si hay más de 16, los divide en batches.
-// Devuelve un mapa {regID → valor confirmado por el dispositivo}.
+// WriteNumRegisters writes numeric registers. If there are more than 16, splits them into batches.
+// Returns a map {regID → value confirmed by the device}.
 func (d *Device) WriteNumRegisters(regs []NumRegister) (map[uint16]uint32, error) {
 	if len(regs) == 0 {
 		return map[uint16]uint32{}, nil
@@ -76,10 +76,10 @@ func (d *Device) writeNumRegsBatch(regs []NumRegister) (map[uint16]uint32, error
 }
 
 // ─────────────────────────────────────────────
-// Lectura numérica
+// Numeric read
 // ─────────────────────────────────────────────
 
-// ReadNumRegisters lee registros numéricos. Si hay más de 16, los divide en batches.
+// ReadNumRegisters reads numeric registers. If there are more than 16, splits them into batches.
 func (d *Device) ReadNumRegisters(regIDs []uint16) (map[uint16]uint32, error) {
 	if len(regIDs) == 0 {
 		return map[uint16]uint32{}, nil
@@ -122,11 +122,11 @@ func (d *Device) readNumRegsBatch(regIDs []uint16) (map[uint16]uint32, error) {
 }
 
 // ─────────────────────────────────────────────
-// Escritura de string
+// String write
 // ─────────────────────────────────────────────
 
-// WriteStringRegister escribe un valor string (como []byte) en un registro.
-// Devuelve el slice de bytes confirmado por el dispositivo.
+// WriteStringRegister writes a string value (as []byte) to a register.
+// Returns the byte slice confirmed by the device.
 func (d *Device) WriteStringRegister(regID uint16, data []byte) ([]byte, error) {
 	// header(1) + regId(2) + length(2) + data
 	content := make([]byte, 5+len(data))
@@ -146,10 +146,10 @@ func (d *Device) WriteStringRegister(regID uint16, data []byte) ([]byte, error) 
 }
 
 // ─────────────────────────────────────────────
-// Lectura de string
+// String read
 // ─────────────────────────────────────────────
 
-// ReadStringRegister lee un registro de tipo string con longitud máxima especificada.
+// ReadStringRegister reads a string register with the specified maximum length.
 func (d *Device) ReadStringRegister(regID uint16, length uint16) ([]byte, error) {
 	content := make([]byte, 5)
 	content[0] = byte(regFuncReadStr << 4)
@@ -167,31 +167,31 @@ func (d *Device) ReadStringRegister(regID uint16, length uint16) ([]byte, error)
 }
 
 // ─────────────────────────────────────────────
-// Parsing de respuestas SET_REGISTER_RESPONSE
+// SET_REGISTER_RESPONSE parsing
 //
-// Estructura del byte de respuesta:
+// Response byte structure:
 //   bits[7]:   reserved
 //   bits[6:4]: functionCode
-//   bits[3:0]: regNum (N-1, donde N = cantidad de registros)
+//   bits[3:0]: regNum (N-1, where N = number of registers)
 // ─────────────────────────────────────────────
 
 func parseNumRegResponse(content []byte) (map[uint16]uint32, error) {
 	if len(content) < 1 {
-		return nil, fmt.Errorf("SET_REGISTER_RESPONSE: contenido vacío")
+		return nil, fmt.Errorf("SET_REGISTER_RESPONSE: empty content")
 	}
 
 	header := content[0]
 	functionCode := (header & 0x70) >> 4
-	regNum := int(header&0x0F) + 1 // regNum en el frame es N-1
+	regNum := int(header&0x0F) + 1 // regNum in the frame is N-1
 	data := content[1:]
 
 	if functionCode != 0 {
-		return nil, fmt.Errorf("SET_REGISTER_RESPONSE: functionCode inesperado %d (esperado 0)", functionCode)
+		return nil, fmt.Errorf("SET_REGISTER_RESPONSE: unexpected functionCode %d (expected 0)", functionCode)
 	}
 
-	// Cada registro: regId(2) + value(4) = 6 bytes
+	// Each register: regId(2) + value(4) = 6 bytes
 	if len(data) < regNum*6 {
-		return nil, fmt.Errorf("SET_REGISTER_RESPONSE: datos insuficientes: tengo %d, necesito %d", len(data), regNum*6)
+		return nil, fmt.Errorf("SET_REGISTER_RESPONSE: insufficient data: have %d, need %d", len(data), regNum*6)
 	}
 
 	result := make(map[uint16]uint32, regNum)
@@ -205,16 +205,16 @@ func parseNumRegResponse(content []byte) (map[uint16]uint32, error) {
 
 func parseStringRegResponse(content []byte) ([]byte, error) {
 	if len(content) < 5 {
-		return nil, fmt.Errorf("SET_REGISTER_RESPONSE (string): contenido demasiado corto: %d bytes", len(content))
+		return nil, fmt.Errorf("SET_REGISTER_RESPONSE (string): content too short: %d bytes", len(content))
 	}
 
 	// data[0]: regId(2) | length(2) | string_bytes
 	data := content[1:]
-	// regID := binary.BigEndian.Uint16(data[0:2]) // disponible si se necesita
+	// regID := binary.BigEndian.Uint16(data[0:2]) // available if needed
 	strLen := int(binary.BigEndian.Uint16(data[2:4]))
 
 	if len(data) < 4+strLen {
-		return nil, fmt.Errorf("SET_REGISTER_RESPONSE (string): datos insuficientes")
+		return nil, fmt.Errorf("SET_REGISTER_RESPONSE (string): insufficient data")
 	}
 
 	result := make([]byte, strLen)

@@ -9,68 +9,68 @@ import (
 )
 
 // ─────────────────────────────────────────────
-// Tipos de archivo y direcciones de memoria
+// File types and memory addresses
 // ─────────────────────────────────────────────
 
-// FileType identifica el tipo de binario a transferir.
+// FileType identifies the type of binary to transfer.
 type FileType string
 
 const (
-	FileTypeCPU1         FileType = "cpu1"
-	FileTypeCPU0Config   FileType = "cpu0_config"
-	FileTypeCalibration  FileType = "calibration"
-	FileTypeEraseStore   FileType = "eraseStoreSpace"
-	FileTypeHWConfig     FileType = "hwconfig"
-	FileTypeProduct      FileType = "product"
-	FileTypeTexture      FileType = "texture"
-	FileTypeTextureGIF   FileType = "texture_gif"
-	FileTypeUpgCfg       FileType = "upg_cfg"
-	FileTypeBootloader   FileType = "bootloader"
+	FileTypeCPU1        FileType = "cpu1"
+	FileTypeCPU0Config  FileType = "cpu0_config"
+	FileTypeCalibration FileType = "calibration"
+	FileTypeEraseStore  FileType = "eraseStoreSpace"
+	FileTypeHWConfig    FileType = "hwconfig"
+	FileTypeProduct     FileType = "product"
+	FileTypeTexture     FileType = "texture"
+	FileTypeTextureGIF  FileType = "texture_gif"
+	FileTypeUpgCfg      FileType = "upg_cfg"
+	FileTypeBootloader  FileType = "bootloader"
 )
 
-// fileTypeAddrs mapea cada FileType a su dirección de memoria en el MCU.
+// fileTypeAddrs maps each FileType to its memory address on the MCU.
 var fileTypeAddrs = map[FileType]uint32{
-	FileTypeCPU1:       0x08040000,
-	FileTypeCPU0Config: 0x080F8000,
-	FileTypeCalibration:0x080FB000,
-	FileTypeEraseStore: 0x080FC000,
-	FileTypeHWConfig:   0x080FE008,
-	FileTypeProduct:    0x080FF008,
-	FileTypeTexture:    0x08100000,
-	FileTypeTextureGIF: 0x08500000,
-	FileTypeUpgCfg:     0x080F7000,
-	FileTypeBootloader: 0x08000000,
+	FileTypeCPU1:        0x08040000,
+	FileTypeCPU0Config:  0x080F8000,
+	FileTypeCalibration: 0x080FB000,
+	FileTypeEraseStore:  0x080FC000,
+	FileTypeHWConfig:    0x080FE008,
+	FileTypeProduct:     0x080FF008,
+	FileTypeTexture:     0x08100000,
+	FileTypeTextureGIF:  0x08500000,
+	FileTypeUpgCfg:      0x080F7000,
+	FileTypeBootloader:  0x08000000,
 }
 
 const maxUploadFileSize = 6436 * 1024 // 6436 KB
 
-// Estados del dispositivo reportados por GetDownloadStatus
+// Device states reported by GetDownloadStatus
 const (
-	downloadStatePrep     = 0x10 // preparación de descarga
-	downloadStateActive   = 0x11 // descarga en curso (resume posible)
-	downloadStateAHMI     = 0x20 // modo AHMI (ya tiene un archivo)
+	downloadStatePrep   = 0x10 // preparing download
+	downloadStateActive = 0x11 // download in progress (resume possible)
+	downloadStateAHMI   = 0x20 // AHMI mode (device already has a file)
 )
 
-// Código de respuesta "procesando" — el dispositivo enviará una respuesta final después
+// "processing" response code — the device will send a final response later
 const respProcessing = uint32(0xFFFFFFFF)
 
 // ─────────────────────────────────────────────
-// Configuración y progreso
+// Configuration and progress
 // ─────────────────────────────────────────────
 
-// UploadProgress representa el estado actual de la transferencia.
+// UploadProgress represents the current state of the transfer.
 type UploadProgress struct {
 	BytesSent  int64
 	TotalBytes int64
 	Percent    int // 0–100
 }
 
-// UploadConfig permite ajustar timeouts y callbacks de progreso.
+// UploadConfig allows adjusting timeouts and progress callbacks.
 type UploadConfig struct {
-	// ChunkTimeout es el timeout por chunk de datos. Por defecto: 5s.
+	// ChunkTimeout is the timeout per data chunk. Default: 5s.
 	ChunkTimeout time.Duration
-	// OnProgress se llama cada vez que el porcentaje avanza ≥5 puntos.
-	// Es seguro dejarlo nil.
+	// OnProgress is called whenever the percentage advances by ≥5 points.
+	// Safe to leave nil.
 	OnProgress func(UploadProgress)
 }
 
@@ -85,16 +85,16 @@ func (c *UploadConfig) chunkTimeout() time.Duration {
 // UploadFile
 // ─────────────────────────────────────────────
 
-// UploadFile transfiere data al MCU en la dirección correspondiente a fileType.
-// El protocolo implementado es el mismo que upload-file en electron.js.
+// UploadFile transfers data to the MCU at the address corresponding to fileType.
+// The protocol implemented matches upload-file in electron.js.
 func (d *Device) UploadFile(data []byte, fileType FileType, cfg UploadConfig) error {
 	addr, ok := fileTypeAddrs[fileType]
 	if !ok {
-		return fmt.Errorf("uploadFile: tipo de archivo desconocido %q", fileType)
+		return fmt.Errorf("uploadFile: unknown file type %q", fileType)
 	}
 
 	if len(data) > maxUploadFileSize {
-		return fmt.Errorf("uploadFile: archivo demasiado grande (%d bytes, máximo %d)", len(data), maxUploadFileSize)
+		return fmt.Errorf("uploadFile: file too large (%d bytes, maximum %d)", len(data), maxUploadFileSize)
 	}
 
 	fileSize := uint32(len(data))
@@ -117,27 +117,27 @@ func (d *Device) UploadFile(data []byte, fileType FileType, cfg UploadConfig) er
 
 	switch status.Status {
 	case downloadStatePrep, downloadStateActive:
-		// Si el archivo es el mismo podemos reanudar desde el offset guardado
+		// If the file is the same we can resume from the saved offset
 		if status.FileID == fileID {
 			startOffset = status.Offset
 			fmt.Fprintf(d.log, "  resuming from offset %d\n", startOffset)
 		}
-		// Si es diferente, empezamos desde 0 (startOffset ya es 0)
+		// If different, start from 0 (startOffset is already 0)
 
 	case downloadStateAHMI:
 		if status.FileID == fileID {
-			// Ya está grabado — nada que hacer
-			fmt.Fprintln(d.log, "  archivo ya presente en el dispositivo")
+			// Already flashed — nothing to do
+			fmt.Fprintln(d.log, "  file already present on the device")
 			d.reportProgress(cfg.OnProgress, int64(fileSize), int64(fileSize))
 			return nil
 		}
-		// Hay otro archivo: necesitamos cambiar el estado antes de grabar
+		// Different file: need to switch state before writing
 		if err := d.switchToDownloadMode(); err != nil {
 			return fmt.Errorf("uploadFile: switchState: %w", err)
 		}
 
 	default:
-		return fmt.Errorf("uploadFile: estado de descarga inválido: 0x%02X", status.Status)
+		return fmt.Errorf("uploadFile: invalid download state: 0x%02X", status.Status)
 	}
 
 	// ── 3. RequestDownload ────────────────────────────────────────────────────
@@ -148,20 +148,20 @@ func (d *Device) UploadFile(data []byte, fileType FileType, cfg UploadConfig) er
 
 	maxPageSize := dlResult.MaxPageSize
 	if maxPageSize == 0 {
-		return fmt.Errorf("uploadFile: dispositivo devolvió maxPageSize=0")
+		return fmt.Errorf("uploadFile: device returned maxPageSize=0")
 	}
 
-	// Respuesta 0xFFFFFFFF → el dispositivo sigue preparándose; esperamos la final
+	// Response 0xFFFFFFFF → device is still preparing; wait for the final response
 	if dlResult.Response == respProcessing {
-		fmt.Fprintln(d.log, "  requestDownload: esperando respuesta final del dispositivo")
+		fmt.Fprintln(d.log, "  requestDownload: waiting for final response from device")
 		if err := d.waitForDownloadReady(); err != nil {
 			return fmt.Errorf("uploadFile: requestDownload processing: %w", err)
 		}
 	} else if dlResult.Response != 0 {
-		return fmt.Errorf("uploadFile: requestDownload rechazado: 0x%08X", dlResult.Response)
+		return fmt.Errorf("uploadFile: requestDownload rejected: 0x%08X", dlResult.Response)
 	}
 
-	// ── 4. Transferencia de datos ─────────────────────────────────────────────
+	// ── 4. Data transfer ──────────────────────────────────────────────────────
 	offset := startOffset
 	lastReportedPct := -1
 
@@ -178,7 +178,7 @@ func (d *Device) UploadFile(data []byte, fileType FileType, cfg UploadConfig) er
 
 		offset = end
 
-		// Progreso: notificar solo cuando cambia ≥5%
+		// Progress: notify only when it changes by ≥5%
 		pct := int(100 * int64(offset) / int64(fileSize))
 		if cfg.OnProgress != nil && pct/5 > lastReportedPct/5 {
 			lastReportedPct = pct
@@ -193,25 +193,25 @@ func (d *Device) UploadFile(data []byte, fileType FileType, cfg UploadConfig) er
 	d.reportProgress(cfg.OnProgress, int64(fileSize), int64(fileSize))
 
 	// ── 5. DownloadComplete ───────────────────────────────────────────────────
-	// Ignoramos errores aquí (igual que el JS) porque el dispositivo a veces
-	// no responde al complete pero la grabación fue exitosa
+	// Errors are ignored here (same as the JS) because the device sometimes
+	// does not respond to complete but the write was successful
 	if err := d.DownloadComplete(); err != nil {
-		fmt.Fprintf(d.log, "  DownloadComplete: %v (ignorado)\n", err)
+		fmt.Fprintf(d.log, "  DownloadComplete: %v (ignored)\n", err)
 	}
 
-	fmt.Fprintln(d.log, "✓ UploadFile completado")
+	fmt.Fprintln(d.log, "✓ UploadFile completed")
 	return nil
 }
 
 // ─────────────────────────────────────────────
-// Helpers internos del upload
+// Upload internal helpers
 // ─────────────────────────────────────────────
 
-// switchToDownloadMode envía SWITCH_STATE con valor 0x10 para salir del modo AHMI.
+// switchToDownloadMode sends SWITCH_STATE with value 0x10 to exit AHMI mode.
 func (d *Device) switchToDownloadMode() error {
 	fmt.Fprintln(d.log, "→ SwitchState → download mode")
 
-	// El JS envía la cadena hex "10" como content, que es el byte 0x10
+	// The JS sends the hex string "10" as content, which is byte 0x10
 	cmd := NewCommand(CmdSwitchState, []byte{0x10})
 	resp, err := d.sendWithRetry(cmd, CmdSwitchStateResp, 1*time.Second, 3)
 	if err != nil {
@@ -219,16 +219,16 @@ func (d *Device) switchToDownloadMode() error {
 	}
 
 	if len(resp.Content) < 4 {
-		return fmt.Errorf("SwitchState response demasiado corta")
+		return fmt.Errorf("SwitchState response too short")
 	}
 	code := binary.BigEndian.Uint32(resp.Content[0:4])
 	if code != 0 {
-		return fmt.Errorf("SwitchState falló con código 0x%08X", code)
+		return fmt.Errorf("SwitchState failed with code 0x%08X", code)
 	}
 	return nil
 }
 
-// waitForDownloadReady espera hasta recibir una respuesta REQUEST_DOWNLOAD_RESPONSE con código 0.
+// waitForDownloadReady waits until a REQUEST_DOWNLOAD_RESPONSE with code 0 is received.
 func (d *Device) waitForDownloadReady() error {
 	deadline := time.Now().Add(60 * time.Second)
 	for {
@@ -247,12 +247,12 @@ func (d *Device) waitForDownloadReady() error {
 			return nil
 		}
 		if code != respProcessing {
-			return fmt.Errorf("requestDownload: código de error 0x%08X", code)
+			return fmt.Errorf("requestDownload: error code 0x%08X", code)
 		}
 	}
 }
 
-// sendChunk envía un chunk de datos y maneja el patrón "processing".
+// sendChunk sends a data chunk and handles the "processing" pattern.
 func (d *Device) sendChunk(offset uint32, chunk []byte, timeout time.Duration) error {
 	content := make([]byte, 4+len(chunk))
 	binary.BigEndian.PutUint32(content[0:4], offset)
@@ -260,7 +260,7 @@ func (d *Device) sendChunk(offset uint32, chunk []byte, timeout time.Duration) e
 
 	cmd := NewCommand(CmdDownloadData, content)
 
-	// Reintentamos el chunk si hay timeout
+	// Retry the chunk on timeout
 	var lastErr error
 	for attempt := 0; attempt < 3; attempt++ {
 		if err := d.serial.Write(cmd.Frame()); err != nil {
@@ -277,14 +277,14 @@ func (d *Device) sendChunk(offset uint32, chunk []byte, timeout time.Duration) e
 		}
 
 		if len(resp.Content) < 4 {
-			lastErr = fmt.Errorf("DownloadData response demasiado corta")
+			lastErr = fmt.Errorf("DownloadData response too short")
 			continue
 		}
 
 		code := binary.BigEndian.Uint32(resp.Content[0:4])
 		switch code {
 		case 0:
-			return nil // éxito
+			return nil // success
 		case respProcessing:
 			if err := d.waitForChunkDone(timeout); err != nil {
 				lastErr = err
@@ -292,16 +292,16 @@ func (d *Device) sendChunk(offset uint32, chunk []byte, timeout time.Duration) e
 			}
 			return nil
 		default:
-			// Otros códigos → reintentamos el chunk
-			lastErr = fmt.Errorf("DownloadData: código 0x%08X", code)
+			// Other codes → retry the chunk
+			lastErr = fmt.Errorf("DownloadData: code 0x%08X", code)
 			continue
 		}
 	}
 
-	return fmt.Errorf("sendChunk: agotados reintentos: %w", lastErr)
+	return fmt.Errorf("sendChunk: retries exhausted: %w", lastErr)
 }
 
-// waitForChunkDone espera a que el dispositivo confirme que procesó el chunk.
+// waitForChunkDone waits for the device to confirm it processed the chunk.
 func (d *Device) waitForChunkDone(timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
@@ -337,11 +337,11 @@ func (d *Device) reportProgress(fn func(UploadProgress), sent, total int64) {
 }
 
 // ─────────────────────────────────────────────
-// DownloadComplete (implementación completa con processing)
+// DownloadComplete (full implementation with processing support)
 // ─────────────────────────────────────────────
 
-// DownloadComplete notifica al dispositivo que la transferencia terminó.
-// Sobrescribe la versión simple de device.go con soporte para el patrón "processing".
+// DownloadComplete notifies the device that the transfer is complete.
+// Overrides the simple version in device.go with support for the "processing" pattern.
 func (d *Device) DownloadComplete() error {
 	fmt.Fprintln(d.log, "→ DownloadComplete")
 
@@ -356,7 +356,7 @@ func (d *Device) DownloadComplete() error {
 	}
 
 	if len(resp.Content) < 4 {
-		return fmt.Errorf("DownloadComplete response demasiado corta")
+		return fmt.Errorf("DownloadComplete response too short")
 	}
 
 	code := binary.BigEndian.Uint32(resp.Content[0:4])
@@ -367,7 +367,7 @@ func (d *Device) DownloadComplete() error {
 		return fmt.Errorf("DownloadComplete: error 0x%08X", code)
 	}
 
-	// Esperamos la respuesta final
+	// Wait for the final response
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		resp, err := ReadResponse(d.serial, time.Until(deadline))
@@ -389,5 +389,3 @@ func (d *Device) DownloadComplete() error {
 		}
 	}
 }
-
-

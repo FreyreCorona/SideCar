@@ -16,8 +16,8 @@ var (
 	ErrUnexpectedType = errors.New("unexpected command type")
 )
 
-// ReadResponse lee del puerto hasta encontrar un frame válido o agotar el timeout.
-// Busca el start flag, valida estructura, CRC y end flag.
+// ReadResponse reads from the port until it finds a valid frame or the timeout expires.
+// Searches for the start flag, validates structure, CRC and end flag.
 func ReadResponse(p *SerialPort, timeout time.Duration) (*Response, error) {
 	deadline := time.Now().Add(timeout)
 
@@ -41,40 +41,40 @@ func ReadResponse(p *SerialPort, timeout time.Duration) (*Response, error) {
 
 		resp, consumed, err := tryParseFrame(buf)
 		if err == errNeedMore {
-			// No tenemos suficientes bytes aún, seguir leyendo
+			// Not enough bytes yet, keep reading
 			if len(buf) > 4096 {
-				// Descartamos hasta el próximo start flag para no crecer sin límite
+				// Discard up to the next start flag to avoid unbounded growth
 				buf = discardUntilStartFlag(buf[1:])
 			}
 			continue
 		}
 
 		if err != nil {
-			// Frame inválido en esta posición, avanzamos y buscamos el siguiente start flag
+			// Invalid frame at this position, advance and look for the next start flag
 			buf = discardUntilStartFlag(buf[1:])
 			continue
 		}
 
-		// Frame válido
+		// Valid frame
 		_ = consumed
 		return resp, nil
 	}
 }
 
-// errNeedMore indica que el buffer no tiene suficientes bytes todavía.
+// errNeedMore indicates the buffer does not yet have enough bytes.
 var errNeedMore = errors.New("need more data")
 
-// tryParseFrame intenta parsear un frame desde el inicio del buffer.
-// Devuelve (response, bytesConsumed, error).
+// tryParseFrame attempts to parse a frame from the beginning of the buffer.
+// Returns (response, bytesConsumed, error).
 func tryParseFrame(buf []byte) (*Response, int, error) {
-	// Buscar start flag
+	// Look for start flag
 	i := bytes.Index(buf, frameStart[:])
 	if i == -1 {
 		return nil, 0, errNeedMore
 	}
 	buf = buf[i:]
 
-	// Necesitamos al menos: start(2) + control(2) + type(2) + crc(2) + end(2) = 10 bytes mínimo
+	// Minimum needed: start(2) + control(2) + type(2) + crc(2) + end(2) = 10 bytes
 	if len(buf) < 10 {
 		return nil, 0, errNeedMore
 	}
@@ -83,7 +83,7 @@ func tryParseFrame(buf []byte) (*Response, int, error) {
 	dataLen := int(controlFlag & 0x7FFF)
 
 	if dataLen < 2 {
-		return nil, 0, errors.New("dataLen inválido")
+		return nil, 0, errors.New("invalid dataLen")
 	}
 
 	contentLen := dataLen - 2
@@ -106,7 +106,7 @@ func tryParseFrame(buf []byte) (*Response, int, error) {
 	return resp, i + frameSize, nil
 }
 
-// discardUntilStartFlag descarta bytes hasta encontrar el start flag.
+// discardUntilStartFlag discards bytes until the start flag is found.
 func discardUntilStartFlag(buf []byte) []byte {
 	i := bytes.Index(buf, frameStart[:])
 	if i == -1 {
@@ -115,7 +115,7 @@ func discardUntilStartFlag(buf []byte) []byte {
 	return buf[i:]
 }
 
-// ExpectResponse lee una respuesta y valida que sea del tipo esperado.
+// ExpectResponse reads a response and validates it is of the expected type.
 func ExpectResponse(p *SerialPort, expected CommandType, timeout time.Duration) (*Response, error) {
 	resp, err := ReadResponse(p, timeout)
 	if err != nil {

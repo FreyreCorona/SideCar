@@ -1,35 +1,35 @@
 package core
 
 // ─────────────────────────────────────────────
-// Registros del sistema (systemTagNameMap en tagUtils.js)
+// System registers (systemTagNameMap in tagUtils.js)
 // ─────────────────────────────────────────────
 
 const (
-	RegDate        = uint16(4)  // Fecha en formato numérico 0xYYYYMMDD
-	RegTime        = uint16(5)  // Hora en formato numérico 0xHHMMSS
-	RegBrightness  = uint16(7)  // Brillo de la pantalla 0–255
-	RegCPU0Version = uint16(12) // Versión CPU0 (string)
-	RegCPU1Version = uint16(13) // Versión CPU1 (string)
-	RegCurrentPage = uint16(2)  // Página activa en la pantalla
+	RegDate        = uint16(4)  // Date in numeric format 0xYYYYMMDD
+	RegTime        = uint16(5)  // Time in numeric format 0xHHMMSS
+	RegBrightness  = uint16(7)  // Screen brightness 0–255
+	RegCPU0Version = uint16(12) // CPU0 version (string)
+	RegCPU1Version = uint16(13) // CPU1 version (string)
+	RegCurrentPage = uint16(2)  // Active page on the screen
 )
 
 // ─────────────────────────────────────────────
-// Registros de datos (tagNameMap en tagUtils.js)
+// Data registers (tagNameMap in tagUtils.js)
 // ─────────────────────────────────────────────
 
 const (
-	// Sistema / hardware
+	// System / hardware
 	RegCPUUsage       = uint16(1080)
 	RegGPUUsage       = uint16(1081)
 	RegBatteryPercent = uint16(1082)
 	RegWifiSSID       = uint16(1083) // string
-	RegWifiQuality    = uint16(1084) // 0=sin señal, 1=baja, 2=media, 3=alta
+	RegWifiQuality    = uint16(1084) // 0=no signal, 1=low, 2=medium, 3=high
 	RegBTName         = uint16(1085) // string
-	RegBTStatus       = uint16(1086) // 0=desconectado, 1=conectado
-	RegWifiStatus     = uint16(1087) // 0=desconectado, 1=conectado
-	RegBatteryType    = uint16(1150) // 0–5 según nivel (0=<20%, 5=100%)
+	RegBTStatus       = uint16(1086) // 0=disconnected, 1=connected
+	RegWifiStatus     = uint16(1087) // 0=disconnected, 1=connected
+	RegBatteryType    = uint16(1150) // 0–5 by level (0=<20%, 5=100%)
 
-	// Recordatorios
+	// Reminders
 	RegReminder1Content = uint16(1090) // string
 	RegReminder1Time    = uint16(1091) // string
 	RegReminder2Content = uint16(1092) // string
@@ -41,9 +41,9 @@ const (
 	RegMediaName     = uint16(1100) // string
 	RegMediaDuration = uint16(1101)
 	RegMediaNow      = uint16(1102)
-	RegMediaPlay     = uint16(2003) // 0=parado, 1=reproduciendo
+	RegMediaPlay     = uint16(2003) // 0=stopped, 1=playing
 
-	// Clima (5 días)
+	// Weather (5 days)
 	RegWeather1Type    = uint16(1110)
 	RegWeather1Temp    = uint16(1111)
 	RegWeather1TempMin = uint16(1112)
@@ -74,7 +74,7 @@ const (
 	RegWeather5TempMax = uint16(1133)
 	RegWeather5Desc    = uint16(1134) // string
 
-	// Notificaciones
+	// Notifications
 	RegNotif1Title   = uint16(1140) // string
 	RegNotif1Content = uint16(1141) // string
 	RegNotif2Title   = uint16(1142) // string
@@ -84,8 +84,8 @@ const (
 )
 
 // ─────────────────────────────────────────────
-// WifiQuality convierte RSSI/porcentaje al enum que espera la pantalla.
-// Misma lógica que tagUtils.js
+// WifiQualityLevel converts an RSSI/percentage to the enum expected by the screen.
+// Same logic as tagUtils.js
 // ─────────────────────────────────────────────
 
 func WifiQualityLevel(qualityPct int) uint32 {
@@ -101,8 +101,8 @@ func WifiQualityLevel(qualityPct int) uint32 {
 	}
 }
 
-// BatteryLevel convierte un porcentaje de batería al enum de icono.
-// Misma lógica que tagUtils.js
+// BatteryLevel converts a battery percentage to the icon enum.
+// Same logic as tagUtils.js
 func BatteryLevel(percent int) uint32 {
 	switch {
 	case percent < 20:
@@ -120,8 +120,8 @@ func BatteryLevel(percent int) uint32 {
 	}
 }
 
-// WeatherType convierte el nombre del tipo de clima al enum de icono.
-// Misma lógica que WeatherTypes en tagUtils.js
+// WeatherType converts a weather type name to the icon enum.
+// Same logic as WeatherTypes in tagUtils.js
 func WeatherType(main string) uint32 {
 	switch main {
 	case "Clear":

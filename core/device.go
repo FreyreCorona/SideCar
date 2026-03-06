@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// Device representa una Minitela conectada por serial.
+// Device represents a Minitela connected over serial.
 type Device struct {
 	serial *SerialPort
 	log    io.Writer
@@ -37,7 +37,7 @@ func (d *Device) Close() error {
 	return d.serial.Close()
 }
 
-// send envía un comando y espera exactamente una respuesta del tipo indicado.
+// send sends a command and waits for exactly one response of the expected type.
 func (d *Device) send(cmd *Command, expect CommandType, timeout time.Duration) (*Response, error) {
 	if err := d.serial.Write(cmd.Frame()); err != nil {
 		return nil, fmt.Errorf("send %s: %w", cmd.Type, err)
@@ -49,7 +49,7 @@ func (d *Device) send(cmd *Command, expect CommandType, timeout time.Duration) (
 	return resp, nil
 }
 
-// sendWithRetry envía un comando y reintenta ante timeouts hasta maxRetries veces.
+// sendWithRetry sends a command and retries on timeout up to maxRetries times.
 func (d *Device) sendWithRetry(cmd *Command, expect CommandType, timeout time.Duration, maxRetries int) (*Response, error) {
 	var lastErr error
 	for attempt := 0; maxRetries == 0 || attempt <= maxRetries; attempt++ {
@@ -64,12 +64,12 @@ func (d *Device) sendWithRetry(cmd *Command, expect CommandType, timeout time.Du
 		if !errors.Is(err, ErrTimeout) {
 			return nil, fmt.Errorf("sendWithRetry %s: %w", cmd.Type, err)
 		}
-		fmt.Fprintf(d.log, "  timeout en %s (intento %d/%d)\n", cmd.Type, attempt+1, maxRetries)
+		fmt.Fprintf(d.log, "  timeout on %s (attempt %d/%d)\n", cmd.Type, attempt+1, maxRetries)
 	}
 	return nil, fmt.Errorf("sendWithRetry %s: %w", cmd.Type, lastErr)
 }
 
-// HandshakeResult contiene los datos de la respuesta al handshake.
+// HandshakeResult holds the data from the handshake response.
 type HandshakeResult struct {
 	MaxPacketLength uint32
 }
@@ -89,8 +89,8 @@ func (d *Device) Handshake() (*HandshakeResult, error) {
 	}, nil
 }
 
-// SetBrightness controla el brillo via registro de hardware.
-// El JS original hardcodeaba el CRC — aquí lo calculamos correctamente.
+// SetBrightness controls brightness via the hardware register.
+// The original JS hardcoded the CRC — here we calculate it correctly.
 func (d *Device) SetBrightness(level uint8) error {
 	fmt.Fprintf(d.log, "→ SetBrightness %d\n", level)
 	_, err := d.WriteNumRegisters([]NumRegister{
@@ -116,7 +116,7 @@ func (d *Device) Reboot() error {
 	return err
 }
 
-// DownloadStatusResult contiene el estado del proceso de descarga activo.
+// DownloadStatusResult holds the state of the active download process.
 type DownloadStatusResult struct {
 	Status uint8
 	FileID [16]byte
@@ -131,7 +131,7 @@ func (d *Device) GetDownloadStatus() (*DownloadStatusResult, error) {
 		return nil, err
 	}
 	if len(resp.Content) < 21 {
-		return nil, fmt.Errorf("GetDownloadStatus response demasiado corta: %d bytes", len(resp.Content))
+		return nil, fmt.Errorf("GetDownloadStatus response too short: %d bytes", len(resp.Content))
 	}
 	result := &DownloadStatusResult{
 		Status: resp.Content[0],
@@ -149,12 +149,12 @@ func (d *Device) GetOffset() (uint32, error) {
 		return 0, err
 	}
 	if len(resp.Content) < 4 {
-		return 0, fmt.Errorf("GetOffset response demasiado corta: %d bytes", len(resp.Content))
+		return 0, fmt.Errorf("GetOffset response too short: %d bytes", len(resp.Content))
 	}
 	return binary.BigEndian.Uint32(resp.Content[0:4]), nil
 }
 
-// RequestDownloadResult contiene los parámetros devueltos al abrir una sesión de descarga.
+// RequestDownloadResult holds the parameters returned when opening a download session.
 type RequestDownloadResult struct {
 	MaxPageSize uint32
 	Response    uint32
@@ -173,7 +173,7 @@ func (d *Device) RequestDownload(addr uint32, fileSize uint32, fileID [16]byte) 
 		return nil, err
 	}
 	if len(resp.Content) < 8 {
-		return nil, fmt.Errorf("RequestDownload response demasiado corta: %d bytes", len(resp.Content))
+		return nil, fmt.Errorf("RequestDownload response too short: %d bytes", len(resp.Content))
 	}
 	return &RequestDownloadResult{
 		MaxPageSize: binary.BigEndian.Uint32(resp.Content[0:4]),
@@ -188,7 +188,7 @@ func (d *Device) SwitchState(payload []byte) error {
 	return err
 }
 
-// AutoConnect prueba todos los puertos seriales disponibles hasta encontrar una Minitela.
+// AutoConnect probes all available serial ports until it finds a Minitela.
 func AutoConnect(baud int) (*Device, error) {
 	devices, err := FindSerialDevices()
 	if err != nil {
