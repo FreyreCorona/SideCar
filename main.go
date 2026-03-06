@@ -9,10 +9,10 @@ import (
 	"time"
 )
 
-// main despacha al modo correcto basándose en el primer argumento posicional
-// o en el flag -mode para daemon/ui.
+// main dispatches to the correct mode based on the first positional argument
+// or the -mode flag for daemon/ui.
 //
-// Uso:
+// Usage:
 //
 //	sidecar                          → CLI help
 //	sidecar -cmd on                  → CLI
@@ -20,9 +20,6 @@ import (
 //	sidecar -mode daemon -interval 3s
 //	sidecar -mode ui                 → UI webview
 func main() {
-	// Detectar modo sin usar flag.Parse() para no interferir con los flags del CLI.
-	// El modo se pasa como PRIMER argumento si es "daemon" o "ui",
-	// o via -mode=daemon / -mode=ui.
 	mode := detectMode(os.Args)
 
 	var err error
@@ -41,7 +38,7 @@ func main() {
 	}
 }
 
-// detectMode inspecciona los args sin consumirlos para decidir el modo.
+// detectMode inspects the args without consuming them to decide the mode.
 func detectMode(args []string) string {
 	for i, arg := range args[1:] {
 		switch arg {
@@ -62,9 +59,9 @@ func detectMode(args []string) string {
 	return "cli"
 }
 
-// runDaemonMode parsea los flags propios del daemon y arranca el loop.
+// runDaemonMode parses daemon-specific flags and starts the loop.
 func runDaemonMode(args []string) error {
-	// Parseo manual simple para no depender de flag global
+	// Simple manual parsing to avoid depending on the global flag package
 	device := "auto"
 	baud := 115200
 	interval := 5 * time.Second

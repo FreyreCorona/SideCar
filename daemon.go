@@ -10,15 +10,15 @@ import (
 	"github.com/FreyreCorona/SideCar/metrics"
 )
 
-// DaemonConfig configura el comportamiento del daemon de sincronización.
+// DaemonConfig holds the configuration for the metrics sync daemon.
 type DaemonConfig struct {
-	// Device es la ruta del puerto serial o "auto".
+	// Device is the serial port path or "auto".
 	Device string
-	// Baud es la velocidad de comunicación.
+	// Baud is the communication baud rate.
 	Baud int
-	// Interval es el tiempo entre cada ciclo de actualización.
+	// Interval is the time between each sync cycle.
 	Interval time.Duration
-	// Log recibe los mensajes de estado. Puede ser nil.
+	// Log receives status messages. Can be nil.
 	Log io.Writer
 }
 
@@ -35,14 +35,14 @@ func (c *DaemonConfig) log(format string, args ...any) {
 	}
 }
 
-// RunDaemon conecta al dispositivo y envía métricas continuamente hasta que
-// el contexto sea cancelado o el dispositivo se desconecte.
+// RunDaemon connects to the device and continuously sends metrics until
+// the context is cancelled or the device disconnects.
 func RunDaemon(ctx context.Context, cfg DaemonConfig) error {
-	cfg.log("→ daemon iniciando (intervalo: %s)", cfg.interval())
+	cfg.log("→ daemon starting (interval: %s)", cfg.interval())
 
 	dev, err := connect(cfg.Device, cfg.Baud)
 	if err != nil {
-		return fmt.Errorf("daemon: conexión fallida: %w", err)
+		return fmt.Errorf("daemon: connection failed: %w", err)
 	}
 	defer dev.Close()
 
@@ -50,11 +50,11 @@ func RunDaemon(ctx context.Context, cfg DaemonConfig) error {
 		dev.SetLogger(cfg.Log)
 	}
 
-	cfg.log("✓ dispositivo conectado")
+	cfg.log("✓ device connected")
 
-	// Enviar fecha/hora inicial antes de entrar al loop
+	// Send initial date/time before entering the loop
 	if err := syncDateTime(dev); err != nil {
-		cfg.log("  advertencia: no se pudo sincronizar fecha/hora: %v", err)
+		cfg.log("  warning: could not sync date/time: %v", err)
 	}
 
 	ticker := time.NewTicker(cfg.interval())
@@ -63,20 +63,20 @@ func RunDaemon(ctx context.Context, cfg DaemonConfig) error {
 	for {
 		select {
 		case <-ctx.Done():
-			cfg.log("→ daemon detenido")
+			cfg.log("→ daemon stopped")
 			return nil
 
 		case <-ticker.C:
 			if err := syncCycle(dev, &cfg); err != nil {
-				return fmt.Errorf("daemon: error en ciclo de sync: %w", err)
+				return fmt.Errorf("daemon: sync cycle error: %w", err)
 			}
 		}
 	}
 }
 
-// syncCycle ejecuta un ciclo completo: recolecta métricas y las envía al dispositivo.
+// syncCycle runs a full cycle: collects metrics and sends them to the device.
 func syncCycle(dev *core.Device, cfg *DaemonConfig) error {
-	// ── Métricas numéricas ────────────────────────────────────────────────────
+	// ── Numeric metrics ───────────────────────────────────────────────────────
 	cpu := metrics.CollectCPUMetrics()
 	mem := metrics.CollectMemoryMetrics()
 	bat := metrics.CollectBatteryMetrics()
@@ -86,14 +86,14 @@ func syncCycle(dev *core.Device, cfg *DaemonConfig) error {
 		// CPU
 		{RegID: core.RegCPUUsage, Value: uint32(cpu.UsagePercent)},
 
-		// Memoria: enviamos usado y total como porcentaje de uso
+		// Memory: send used/total as usage percentage
 		{RegID: core.RegGPUUsage, Value: memUsagePct(mem)},
 
-		// Batería
+		// Battery
 		{RegID: core.RegBatteryPercent, Value: uint32(bat.Capacity)},
 		{RegID: core.RegBatteryType, Value: core.BatteryLevel(bat.Capacity)},
 
-		// Red: RX/TX en KB (los registros son uint32, suficiente para la mayoría de casos)
+		// Network: RX/TX in KB (registers are uint32, sufficient for most cases)
 		{RegID: core.RegWifiQuality, Value: uint32(net.RXBytes / 1024)},
 		{RegID: core.RegWifiStatus, Value: uint32(net.TXBytes / 1024)},
 	}
@@ -110,34 +110,34 @@ func syncCycle(dev *core.Device, cfg *DaemonConfig) error {
 	)
 
 	// ── Strings ───────────────────────────────────────────────────────────────
-	// Interfaz de red activa
+	// Active network interface
 	if net.Interface != "" {
 		if _, err := dev.WriteStringRegister(core.RegWifiSSID, []byte(net.Interface)); err != nil {
-			cfg.log("  advertencia: WriteStringRegister interface: %v", err)
+			cfg.log("  warning: WriteStringRegister interface: %v", err)
 		}
 	}
 
-	// Estado de batería
+	// Battery status
 	if bat.Status != "" {
 		if _, err := dev.WriteStringRegister(core.RegBTName, []byte(bat.Status)); err != nil {
-			cfg.log("  advertencia: WriteStringRegister battery status: %v", err)
+			cfg.log("  warning: WriteStringRegister battery status: %v", err)
 		}
 	}
 
-	// ── Fecha y hora ──────────────────────────────────────────────────────────
+	// ── Date and time ──────────────────────────────────────────────────────────
 	if err := syncDateTime(dev); err != nil {
-		cfg.log("  advertencia: syncDateTime: %v", err)
+		cfg.log("  warning: syncDateTime: %v", err)
 	}
 
 	return nil
 }
 
-// syncDateTime envía la fecha y hora actuales al dispositivo.
-// Formato: fecha = 0xYYYYMMDD, hora = 0xHHMMSS
+// syncDateTime sends the current date and time to the device.
+// Format: date = 0xYYYYMMDD, time = 0xHHMMSS
 func syncDateTime(dev *core.Device) error {
 	now := time.Now()
 
-	// Construir el valor numérico hex-encoded igual que el JS:
+	// Build the hex-encoded numeric value matching the JS logic:
 	// dateStr = `0x${year}${month}${day}` → Number(dateStr)
 	dateVal := uint32(now.Year())*0x10000 +
 		uint32(now.Month())*0x100 +
@@ -154,7 +154,7 @@ func syncDateTime(dev *core.Device) error {
 	return err
 }
 
-// memUsagePct convierte métricas de memoria a porcentaje (0-100).
+// memUsagePct converts memory metrics to a percentage (0-100).
 func memUsagePct(m metrics.MemoryMetrics) uint32 {
 	if m.TotalMB == 0 {
 		return 0

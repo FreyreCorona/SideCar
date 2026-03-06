@@ -25,7 +25,7 @@ import (
 	_ "github.com/abemedia/go-webview/embedded"
 )
 
-// ── Estado global de la UI ───────────────────────────────────
+// ── Global UI state ───────────────────────────────────────────
 
 type UIState struct {
 	mu           sync.Mutex
@@ -71,7 +71,7 @@ func runUI() error {
 		}
 	}()
 
-	// ── Bindings Go → JS ──────────────────────────────────────
+	// ── Go → JS bindings ──────────────────────────────────────
 
 	w.Bind("getCurrentFrame", getCurrentFrame)
 
@@ -87,8 +87,8 @@ func runUI() error {
 		}
 	})
 
-	// startDaemon: conecta al device e inicia el loop de métricas usando
-	// la MISMA conexión. Sin doble-connect.
+	// startDaemon: connects to the device and starts the metrics loop using
+	// the SAME connection — no double-connect.
 	w.Bind("startDaemon", func() bool {
 		uiState.mu.Lock()
 		defer uiState.mu.Unlock()
@@ -113,7 +113,7 @@ func runUI() error {
 		return true
 	})
 
-	// stopDaemon: detiene el daemon y cierra el device.
+	// stopDaemon: stops the daemon and closes the device.
 	w.Bind("stopDaemon", func() {
 		uiState.mu.Lock()
 		defer uiState.mu.Unlock()
@@ -129,7 +129,7 @@ func runUI() error {
 		}
 	})
 
-	// getStats: lee métricas del sistema (no requiere device)
+	// getStats: reads system metrics (does not require a device)
 	w.Bind("getStats", func() map[string]interface{} {
 		cpu := metrics.CollectCPUMetrics()
 		mem := metrics.CollectMemoryMetrics()
@@ -157,7 +157,7 @@ func runUI() error {
 		}
 	})
 
-	// pingDevice: verifica si el device responde (para status)
+	// pingDevice: checks whether the device is responding (for status polling)
 	w.Bind("pingDevice", func() bool {
 		uiState.mu.Lock()
 		dev := uiState.dev
@@ -230,8 +230,8 @@ func runUI() error {
 		return map[string]interface{}{"ok": true}
 	})
 
-	// convertImageToACF: convierte imagen (base64) a RGB565 raw para la minitela.
-	// El display es 240×240. Retorna los bytes como []int para JS.
+	// convertImageToACF: converts an image (base64) to RGB565 raw for the mini screen.
+	// The display is 240×240. Returns the bytes as []int for JS.
 	w.Bind("convertImageToACF", func(b64data string, targetW int, targetH int) map[string]interface{} {
 		if targetW <= 0 {
 			targetW = 240
@@ -255,7 +255,7 @@ func runUI() error {
 		srcW := bounds.Max.X - bounds.Min.X
 		srcH := bounds.Max.Y - bounds.Min.Y
 
-		// Escalar con nearest-neighbor si es necesario.
+		// Scale with nearest-neighbor if necessary.
 		var rgba *image.RGBA
 		if srcW != targetW || srcH != targetH {
 			dst := image.NewRGBA(image.Rect(0, 0, targetW, targetH))
@@ -272,7 +272,7 @@ func runUI() error {
 			draw.Draw(rgba, bounds, img, bounds.Min, draw.Src)
 		}
 
-		// Convertir a RGB565 big-endian: RRRRR GGGGGG BBBBB
+		// Convert to RGB565 big-endian: RRRRR GGGGGG BBBBB
 		pixelCount := targetW * targetH
 		acf := make([]byte, pixelCount*2)
 		for y := 0; y < targetH; y++ {
@@ -332,8 +332,8 @@ func runUI() error {
 
 // ── runUIMetricsLoop ──────────────────────────────────────────
 
-// runUIMetricsLoop sincroniza métricas usando el device ya conectado.
-// Si el device falla, limpia el estado y notifica a la UI.
+// runUIMetricsLoop syncs metrics using the already-connected device.
+// If the device fails, it clears the state and notifies the UI.
 func runUIMetricsLoop(ctx context.Context, dev *core.Device, w wv.WebView) {
 	defer func() {
 		w.Dispatch(func() {
