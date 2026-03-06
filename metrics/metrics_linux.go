@@ -49,7 +49,7 @@ func CollectNetworkMetrics() NetworkMetrics {
 		parts := strings.Split(line, ":")
 		iface := strings.TrimSpace(parts[0])
 
-		// ignorar loopback
+		// skip loopback
 		if iface == "lo" {
 			continue
 		}
