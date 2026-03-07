@@ -3,7 +3,6 @@ package core
 import (
 	"bytes"
 	"fmt"
-	"path/filepath"
 	"time"
 
 	"go.bug.st/serial"
@@ -101,24 +100,16 @@ func (s *SerialPort) Close() error {
 	return s.port.Close()
 }
 
+// FindSerialDevices returns all available serial ports on the system.
+// Uses go.bug.st/serial's built-in port enumeration which works on both
+// Linux (/dev/ttyUSB*, /dev/ttyACM*) and Windows (COM1, COM3, ...).
 func FindSerialDevices() ([]string, error) {
-	patterns := []string{
-		"/dev/ttyACM*",
-		"/dev/ttyUSB*",
-		"/dev/serial/by-id/*",
+	ports, err := serial.GetPortsList()
+	if err != nil {
+		return nil, fmt.Errorf("listing serial ports: %w", err)
 	}
-
-	var devices []string
-	for _, p := range patterns {
-		matches, err := filepath.Glob(p)
-		if err != nil {
-			return nil, err
-		}
-		devices = append(devices, matches...)
-	}
-
-	if len(devices) == 0 {
+	if len(ports) == 0 {
 		return nil, fmt.Errorf("no serial devices found")
 	}
-	return devices, nil
+	return ports, nil
 }

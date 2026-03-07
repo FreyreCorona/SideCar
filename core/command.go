@@ -108,11 +108,9 @@ func (c *Command) Frame() []byte {
 		controlFlag |= 0x8000
 	}
 
-	// Pre-calculate size to avoid extra allocations
+	// Pre-calculate size to avoid extra allocations.
+	// The CRC field (2 bytes) is always present: filled with the real CRC or 0x0000.
 	frameSize := 2 + 2 + 2 + len(c.Content) + 2 + 2 // start+ctrl+type+content+crc+end
-	if !c.crcEnabled {
-		frameSize -= 2
-	}
 
 	buf := make([]byte, 0, frameSize)
 
@@ -169,7 +167,7 @@ func ParseFrame(raw []byte) (*Response, error) {
 		return nil, fmt.Errorf("invalid dataLen: %d", dataLen)
 	}
 
-	contentLen := dataLen - 2 // dataLen includes the 2 cmdType bytes
+	contentLen := dataLen - 2                      // dataLen includes the 2 cmdType bytes
 	expectedSize := 2 + 2 + 2 + contentLen + 2 + 2 // start+ctrl+type+content+crc+end
 
 	if len(raw) < expectedSize {
