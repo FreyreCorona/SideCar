@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strconv"
 	"time"
 
 	"github.com/FreyreCorona/SideCar/core"
@@ -134,32 +133,36 @@ func syncCycle(dev *core.Device, cfg *DaemonConfig) error {
 }
 
 // syncDateTime sends the current date and time to the device.
-// The encoding mirrors the JS logic exactly:
-//
-//	dateStr = `0x${year}${month}${day}` → Number(dateStr)
-//
 // So year=2025, month=03, day=07 → "20250307" parsed as hex → 0x20250307.
 // Each byte is BCD: the device reads 0x20, 0x25, 0x03, 0x07 independently.
 func syncDateTime(dev *core.Device) error {
-	now := time.Now()
-
-	dateStr := fmt.Sprintf("%04d%02d%02d", now.Year(), int(now.Month()), now.Day())
-	dateVal64, err := strconv.ParseUint(dateStr, 16, 32)
-	if err != nil {
-		return fmt.Errorf("syncDateTime: invalid date %q: %w", dateStr, err)
+	t := time.Now()
+	toBCD := func(v int) uint32 {
+		return uint32((v/10)<<4 | (v % 10))
 	}
+	y := t.Year()
 
-	timeStr := fmt.Sprintf("%02d%02d%02d", now.Hour(), now.Minute(), now.Second())
-	timeVal64, err := strconv.ParseUint(timeStr, 16, 32)
-	if err != nil {
-		return fmt.Errorf("syncDateTime: invalid time %q: %w", timeStr, err)
-	}
+	dateVal :=
+		toBCD(y/100)<<24 |
+			toBCD(y%100)<<16 |
+			toBCD(int(t.Month()))<<8 |
+			toBCD(t.Day())
 
-	_, err = dev.WriteNumRegisters([]core.NumRegister{
-		{RegID: core.RegDate, Value: uint32(dateVal64)},
-		{RegID: core.RegTime, Value: uint32(timeVal64)},
+	timeVal :=
+		toBCD(t.Hour())<<16 |
+			toBCD(t.Minute())<<8 |
+			toBCD(t.Second())
+
+	_, err := dev.WriteNumRegisters([]core.NumRegister{
+		{RegID: core.RegDate, Value: dateVal},
+		{RegID: core.RegTime, Value: timeVal},
 	})
-	return err
+
+	if err != nil {
+		return fmt.Errorf("syncDateTime: write registers: %w", err)
+	}
+
+	return nil
 }
 
 // memUsagePct converts memory metrics to a percentage (0-100).
