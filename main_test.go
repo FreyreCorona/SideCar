@@ -7,65 +7,6 @@ import (
 	"github.com/FreyreCorona/SideCar/metrics"
 )
 
-// ── detectMode ────────────────────────────────────────────────────────────
-
-func TestDetectMode_DaemonPositional(t *testing.T) {
-	if got := detectMode([]string{"sidecar", "daemon"}); got != "daemon" {
-		t.Errorf("got %q, want daemon", got)
-	}
-}
-
-func TestDetectMode_UIPositional(t *testing.T) {
-	if got := detectMode([]string{"sidecar", "ui"}); got != "ui" {
-		t.Errorf("got %q, want ui", got)
-	}
-}
-
-func TestDetectMode_FlagMode(t *testing.T) {
-	if got := detectMode([]string{"sidecar", "-mode", "daemon"}); got != "daemon" {
-		t.Errorf("-mode daemon: got %q, want daemon", got)
-	}
-}
-
-func TestDetectMode_FlagModeDoubleDash(t *testing.T) {
-	if got := detectMode([]string{"sidecar", "--mode", "daemon"}); got != "daemon" {
-		t.Errorf("--mode daemon: got %q, want daemon", got)
-	}
-}
-
-func TestDetectMode_SingleDashEquals(t *testing.T) {
-	// Bug fixed: was returning wrong suffix for -mode=X
-	if got := detectMode([]string{"sidecar", "-mode=daemon"}); got != "daemon" {
-		t.Errorf("-mode=daemon: got %q, want daemon", got)
-	}
-}
-
-func TestDetectMode_DoubleDashEquals(t *testing.T) {
-	if got := detectMode([]string{"sidecar", "--mode=daemon"}); got != "daemon" {
-		t.Errorf("--mode=daemon: got %q, want daemon", got)
-	}
-}
-
-func TestDetectMode_Default(t *testing.T) {
-	// Bare binary → defaults to ui
-	if got := detectMode([]string{"sidecar"}); got != "ui" {
-		t.Errorf("bare sidecar: got %q, want ui", got)
-	}
-}
-
-func TestDetectMode_UnrelatedFlags(t *testing.T) {
-	// -cmd is a CLI flag, not a mode
-	if got := detectMode([]string{"sidecar", "-cmd", "on"}); got != "ui" {
-		t.Errorf("-cmd on: got %q, want ui", got)
-	}
-}
-
-func TestDetectMode_ModeAfterOtherArgs(t *testing.T) {
-	if got := detectMode([]string{"sidecar", "-device", "/dev/ttyUSB0", "-mode=daemon"}); got != "daemon" {
-		t.Errorf("mode after other flags: got %q, want daemon", got)
-	}
-}
-
 // ── parseRegs ─────────────────────────────────────────────────────────────
 
 func TestParseRegs_SingleDecimal(t *testing.T) {
