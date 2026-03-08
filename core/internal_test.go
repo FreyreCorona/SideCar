@@ -16,8 +16,8 @@ func TestCRC16_KnownValues(t *testing.T) {
 	}{
 		{"empty", []byte{}, 0x0000},
 		{"single zero byte", []byte{0x00}, 0x0000},
-		{"single 0xFF", []byte{0xFF}, 0x8005},
-		{"0x01 0x02", []byte{0x01, 0x02}, 0xC001 ^ 0x4003},
+		{"single 0xFF", []byte{0xFF}, 0x4040},
+		{"0x01 0x02", []byte{0x01, 0x02}, 0x5180},
 		// Known vector for CRC-16/IBM (poly 0x8005, reflected): "123456789" → 0xBB3D
 		{"standard vector", []byte("123456789"), 0xBB3D},
 	}
