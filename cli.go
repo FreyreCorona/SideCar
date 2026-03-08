@@ -23,7 +23,7 @@ func runCLI(args []string) error {
 	help := fs.Bool("help", false, "display command help")
 
 	// Per-command flags
-	brightness := fs.Int("brightness", 100, "brightness level 0-255 [cmd: on, brightness]")
+	brightness := fs.Int("brightness", 100, "brightness level 0-100 [cmd: on, brightness]")
 	filePath := fs.String("file", "", "path to file to upload [cmd: upload]")
 	fileType := fs.String("type", "texture", "file type: texture, texture_gif, cpu1, bootloader, ... [cmd: upload]")
 	regID := fs.Uint("reg", 0, "register ID (uint16) [cmd: write-reg, read-reg]")
@@ -36,16 +36,15 @@ func runCLI(args []string) error {
 		return fmt.Errorf("error parsing flags: %v\n\n%s", err, usage())
 	}
 
-	if *help || *cmd == "" {
-		if *cmd != "" {
-			fmt.Println(cmdHelp(*cmd))
-		} else {
-			fmt.Println(usage())
-		}
+	if *cmd == "" {
+		fmt.Println(usage())
 		return nil
 	}
 
-	// ── Connection ────────────────────────────────────────────────────────────
+	if *help {
+		fmt.Println(cmdHelp(*cmd))
+		return nil
+	}
 
 	dev, err := connect(*device, int(*baud))
 	if err != nil {
@@ -54,24 +53,16 @@ func runCLI(args []string) error {
 	defer dev.Close()
 	dev.SetLogger(os.Stdout)
 
-	// ── Dispatch ──────────────────────────────────────────────────────────────
-
 	switch *cmd {
 
-	case "on":
-		if *brightness < 0 || *brightness > 255 {
-			return fmt.Errorf("-brightness must be between 0 and 255")
+	case "on", "brightness":
+		if *brightness < 0 || *brightness > 100 {
+			return fmt.Errorf("-brightness must be between 0 and 100")
 		}
 		return dev.SetBrightness(uint8(*brightness))
 
 	case "off":
 		return dev.Sleep()
-
-	case "brightness":
-		if *brightness < 0 || *brightness > 255 {
-			return fmt.Errorf("-brightness must be between 0 and 255")
-		}
-		return dev.SetBrightness(uint8(*brightness))
 
 	case "reboot":
 		return dev.Reboot()
@@ -194,10 +185,8 @@ func runCLI(args []string) error {
 }
 
 // pageRegID and regBrightness use the constants defined in core/tags.go.
-// '当前页面序号' → RegCurrentPage = 2  (not 1, confirmed in tagUtils.js)
-// '背光'         → RegBrightness  = 7
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// RegCurrentPage = 2  (not 1)
+// RegBrightness  = 7
 
 func connect(device string, baud int) (*core.Device, error) {
 	if device != "auto" {
@@ -241,8 +230,6 @@ func parseRegs(input string) ([]core.NumRegister, error) {
 	return regs, nil
 }
 
-// ── Help strings ──────────────────────────────────────────────────────────────
-
 func usage() string {
 	return `Sidecar CLI — control a Minitela over serial
 
@@ -285,7 +272,7 @@ func cmdHelp(cmd string) string {
 Turn the screen on by setting the brightness.
 
 Options:
-  -brightness int   brightness level 0–255 (default 100)
+  -brightness int   brightness level 0-255 (default 100)
 
 Examples:
   sidecar -cmd on
@@ -301,7 +288,7 @@ Example:
 Adjust brightness without changing the screen state.
 
 Options:
-  -brightness int   brightness level 0–255 (required)
+  -brightness int   brightness level 0-255 (required)
 
 Example:
   sidecar -cmd brightness -brightness 150
