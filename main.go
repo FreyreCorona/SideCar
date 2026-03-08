@@ -49,10 +49,10 @@ func detectMode(args []string) string {
 				return args[i+2]
 			}
 		}
-		if len(arg) > 6 && (arg[:6] == "-mode=" || arg[:7] == "--mode=") {
-			if len(arg) > 7 {
-				return arg[7:] // --mode=daemon
-			}
+		if len(arg) >= 7 && arg[:7] == "--mode=" {
+			return arg[7:] // --mode=daemon
+		}
+		if len(arg) >= 6 && arg[:6] == "-mode=" {
 			return arg[6:] // -mode=daemon
 		}
 	}

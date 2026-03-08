@@ -366,6 +366,7 @@ func runUIMetricsLoop(ctx context.Context, dev *core.Device, w wv.WebView) {
 					uiState.daemonCancel = nil
 				}
 				uiState.mu.Unlock()
+				dev.Close() // close the port — dev is captured by value, safe to call here
 				return
 			}
 		}

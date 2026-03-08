@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strconv"
 	"time"
 
 	"github.com/FreyreCorona/SideCar/core"
@@ -93,9 +94,9 @@ func syncCycle(dev *core.Device, cfg *DaemonConfig) error {
 		{RegID: core.RegBatteryPercent, Value: uint32(bat.Capacity)},
 		{RegID: core.RegBatteryType, Value: core.BatteryLevel(bat.Capacity)},
 
-		// Network: RX/TX in KB (registers are uint32, sufficient for most cases)
-		{RegID: core.RegWifiQuality, Value: uint32(net.RXBytes / 1024)},
-		{RegID: core.RegWifiStatus, Value: uint32(net.TXBytes / 1024)},
+		// Network: RX/TX counters in dedicated registers (not quality/status)
+		{RegID: core.RegMediaDuration, Value: uint32(net.RXBytes / 1024)},
+		{RegID: core.RegMediaNow, Value: uint32(net.TXBytes / 1024)},
 	}
 
 	if _, err := dev.WriteNumRegisters(numRegs); err != nil {
@@ -133,23 +134,30 @@ func syncCycle(dev *core.Device, cfg *DaemonConfig) error {
 }
 
 // syncDateTime sends the current date and time to the device.
-// Format: date = 0xYYYYMMDD, time = 0xHHMMSS
+// The encoding mirrors the JS logic exactly:
+//
+//	dateStr = `0x${year}${month}${day}` → Number(dateStr)
+//
+// So year=2025, month=03, day=07 → "20250307" parsed as hex → 0x20250307.
+// Each byte is BCD: the device reads 0x20, 0x25, 0x03, 0x07 independently.
 func syncDateTime(dev *core.Device) error {
 	now := time.Now()
 
-	// Build the hex-encoded numeric value matching the JS logic:
-	// dateStr = `0x${year}${month}${day}` → Number(dateStr)
-	dateVal := uint32(now.Year())*0x10000 +
-		uint32(now.Month())*0x100 +
-		uint32(now.Day())
+	dateStr := fmt.Sprintf("%04d%02d%02d", now.Year(), int(now.Month()), now.Day())
+	dateVal64, err := strconv.ParseUint(dateStr, 16, 32)
+	if err != nil {
+		return fmt.Errorf("syncDateTime: invalid date %q: %w", dateStr, err)
+	}
 
-	timeVal := uint32(now.Hour())*0x10000 +
-		uint32(now.Minute())*0x100 +
-		uint32(now.Second())
+	timeStr := fmt.Sprintf("%02d%02d%02d", now.Hour(), now.Minute(), now.Second())
+	timeVal64, err := strconv.ParseUint(timeStr, 16, 32)
+	if err != nil {
+		return fmt.Errorf("syncDateTime: invalid time %q: %w", timeStr, err)
+	}
 
-	_, err := dev.WriteNumRegisters([]core.NumRegister{
-		{RegID: core.RegDate, Value: dateVal},
-		{RegID: core.RegTime, Value: timeVal},
+	_, err = dev.WriteNumRegisters([]core.NumRegister{
+		{RegID: core.RegDate, Value: uint32(dateVal64)},
+		{RegID: core.RegTime, Value: uint32(timeVal64)},
 	})
 	return err
 }

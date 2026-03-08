@@ -40,7 +40,7 @@ func getCurrentFrame() RenderFrame {
 
 func nextView() {
 	currentView++
-	if currentView > 1 {
+	if currentView > 2 {
 		currentView = 0
 	}
 }
