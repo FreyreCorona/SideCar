@@ -76,7 +76,6 @@ func RunDaemon(ctx context.Context, cfg DaemonConfig) error {
 
 // syncCycle runs a full cycle: collects metrics and sends them to the device.
 func syncCycle(dev *core.Device, cfg *DaemonConfig) error {
-	// ── Numeric metrics ───────────────────────────────────────────────────────
 	cpu := metrics.CollectCPUMetrics()
 	mem := metrics.CollectMemoryMetrics()
 	bat := metrics.CollectBatteryMetrics()
@@ -109,7 +108,6 @@ func syncCycle(dev *core.Device, cfg *DaemonConfig) error {
 		net.RXBytes/1024, net.TXBytes/1024,
 	)
 
-	// ── Strings ───────────────────────────────────────────────────────────────
 	// Active network interface
 	if net.Interface != "" {
 		if _, err := dev.WriteStringRegister(core.RegWifiSSID, []byte(net.Interface)); err != nil {
@@ -124,7 +122,7 @@ func syncCycle(dev *core.Device, cfg *DaemonConfig) error {
 		}
 	}
 
-	// ── Date and time ──────────────────────────────────────────────────────────
+	// Date and time
 	if err := syncDateTime(dev); err != nil {
 		cfg.log("  warning: syncDateTime: %v", err)
 	}
