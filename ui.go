@@ -16,7 +16,7 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/FreyreCorona/SideCar/core"
@@ -29,11 +29,8 @@ import (
 //go:embed ui/*
 var uiFS embed.FS
 
-// ── Global UI state ───────────────────────────────────────────
-
 type UIState struct {
-	mu           sync.Mutex
-	dev          *core.Device
+	dev          atomic.Pointer[core.Device]
 	daemonCtx    context.Context
 	daemonCancel context.CancelFunc
 	win          wv.WebView
@@ -41,8 +38,6 @@ type UIState struct {
 }
 
 var uiState UIState
-
-// ── Entry point ───────────────────────────────────────────────
 
 func runUI() error {
 	debug := os.Getenv("SIDECAR_DEBUG") == "1"
@@ -59,7 +54,7 @@ func runUI() error {
 	w.SetTitle("SideCar")
 	w.SetSize(960, 620, wv.HintNone)
 
-	// ── HTTP server ────────────────────────────────────────────
+	// HTTP server
 	sub, err := fs.Sub(uiFS, "ui")
 	if err != nil {
 		log.Fatal(err)
@@ -75,10 +70,9 @@ func runUI() error {
 		}
 	}()
 
-	// ── Go → JS bindings ──────────────────────────────────────
+	//Go → JS bindings
 
 	w.Bind("getCurrentFrame", getCurrentFrame)
-
 	w.Bind("nextView", func() {
 		nextView()
 		if onViewChange != nil {
@@ -90,13 +84,7 @@ func runUI() error {
 			currentView = idx % 3
 		}
 	})
-
-	// startDaemon: connects to the device and starts the metrics loop using
-	// the SAME connection — no double-connect.
 	w.Bind("startDaemon", func() bool {
-		uiState.mu.Lock()
-		defer uiState.mu.Unlock()
-
 		if uiState.daemonCancel != nil {
 			return true
 		}
@@ -106,7 +94,7 @@ func runUI() error {
 			log.Println("startDaemon: connect:", err)
 			return false
 		}
-		uiState.dev = dev
+		uiState.dev.Store(dev)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		uiState.daemonCtx = ctx
@@ -116,24 +104,17 @@ func runUI() error {
 
 		return true
 	})
-
-	// stopDaemon: stops the daemon and closes the device.
 	w.Bind("stopDaemon", func() {
-		uiState.mu.Lock()
-		defer uiState.mu.Unlock()
-
 		if uiState.daemonCancel != nil {
 			uiState.daemonCancel()
 			uiState.daemonCancel = nil
 			uiState.daemonCtx = nil
 		}
-		if uiState.dev != nil {
-			uiState.dev.Close()
-			uiState.dev = nil
+		if dev := uiState.dev.Load(); dev != nil {
+			dev.Close()
+			uiState.dev.Store(nil)
 		}
 	})
-
-	// getStats: reads system metrics (does not require a device)
 	w.Bind("getStats", func() map[string]interface{} {
 		cpu := metrics.CollectCPUMetrics()
 		mem := metrics.CollectMemoryMetrics()
@@ -160,55 +141,53 @@ func runUI() error {
 			"uptime":    up.Seconds,
 		}
 	})
-
-	// pingDevice: checks whether the device is responding (for status polling)
 	w.Bind("pingDevice", func() bool {
-		uiState.mu.Lock()
-		dev := uiState.dev
-		uiState.mu.Unlock()
+		dev := uiState.dev.Load()
 		if dev == nil {
 			return false
 		}
 		_, err := dev.Handshake()
 		return err == nil
 	})
-
 	w.Bind("setBrightness", func(level int) {
-		uiState.mu.Lock()
-		dev := uiState.dev
-		uiState.mu.Unlock()
+		dev := uiState.dev.Load()
 		if dev == nil {
 			return
 		}
 		if level < 0 {
 			level = 0
 		}
-		if level > 255 {
-			level = 255
+		if level > 100 {
+			level = 100
 		}
 		if err := dev.SetBrightness(uint8(level)); err != nil {
 			log.Println("setBrightness:", err)
 		}
 	})
-
-	w.Bind("wake", func() { withDev(func(d *core.Device) { d.Wake() }) })
-	w.Bind("sleep", func() { withDev(func(d *core.Device) { d.Sleep() }) })
-	w.Bind("reboot", func() {
-		withDev(func(d *core.Device) { d.Reboot() })
+	w.Bind("wake", func() {
+		if dev := uiState.dev.Load(); dev != nil {
+			dev.Wake()
+		}
 	})
-
+	w.Bind("sleep", func() {
+		if dev := uiState.dev.Load(); dev != nil {
+			dev.Sleep()
+		}
+	})
+	w.Bind("reboot", func() {
+		if dev := uiState.dev.Load(); dev != nil {
+			dev.Reboot()
+		}
+	})
 	w.Bind("showPage", func(page int) {
-		withDev(func(d *core.Device) {
-			d.WriteNumRegisters([]core.NumRegister{
+		if dev := uiState.dev.Load(); dev != nil {
+			dev.WriteNumRegisters([]core.NumRegister{
 				{RegID: core.RegCurrentPage, Value: uint32(page)},
 			})
-		})
+		}
 	})
-
 	w.Bind("uploadFile", func(bytesArr []int, fileType string) map[string]interface{} {
-		uiState.mu.Lock()
-		dev := uiState.dev
-		uiState.mu.Unlock()
+		dev := uiState.dev.Load()
 
 		if dev == nil {
 			return map[string]interface{}{"error": "device not connected"}
@@ -235,7 +214,7 @@ func runUI() error {
 	})
 
 	// convertImageToACF: converts an image (base64) to RGB565 raw for the mini screen.
-	// The display is 240×240. Returns the bytes as []int for JS.
+	// The display is 240×240. Returns the bytes as []int
 	w.Bind("convertImageToACF", func(b64data string, targetW int, targetH int) map[string]interface{} {
 		if targetW <= 0 {
 			targetW = 240
@@ -304,7 +283,6 @@ func runUI() error {
 			"size":   len(acf),
 		}
 	})
-
 	w.Bind("listPorts", func() []string {
 		ports, err := core.FindSerialDevices()
 		if err != nil {
@@ -312,7 +290,6 @@ func runUI() error {
 		}
 		return ports
 	})
-
 	w.Bind("setImage", func(payload string) {
 		var p struct {
 			Asset string `json:"asset"`
@@ -334,8 +311,6 @@ func runUI() error {
 	return nil
 }
 
-// ── runUIMetricsLoop ──────────────────────────────────────────
-
 // runUIMetricsLoop syncs metrics using the already-connected device.
 // If the device fails, it clears the state and notifies the UI.
 func runUIMetricsLoop(ctx context.Context, dev *core.Device, w wv.WebView) {
@@ -356,32 +331,21 @@ func runUIMetricsLoop(ctx context.Context, dev *core.Device, w wv.WebView) {
 		select {
 		case <-ctx.Done():
 			return
+
 		case <-ticker.C:
 			if err := syncCycle(dev, &DaemonConfig{Interval: 5 * time.Second, Log: io.Discard}); err != nil {
 				log.Println("runUIMetricsLoop: syncCycle error — device disconnected:", err)
-				uiState.mu.Lock()
-				uiState.dev = nil
+
+				uiState.dev.Store(nil)
+
 				if uiState.daemonCancel != nil {
 					uiState.daemonCancel()
 					uiState.daemonCancel = nil
 				}
-				uiState.mu.Unlock()
-				dev.Close() // close the port — dev is captured by value, safe to call here
+
+				dev.Close() // close the port
 				return
 			}
 		}
 	}
-}
-
-// ── Helpers ───────────────────────────────────────────────────
-
-func withDev(fn func(*core.Device)) {
-	uiState.mu.Lock()
-	dev := uiState.dev
-	uiState.mu.Unlock()
-	if dev == nil {
-		log.Println("withDev: no device connected")
-		return
-	}
-	fn(dev)
 }
