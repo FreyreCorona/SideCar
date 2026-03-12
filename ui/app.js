@@ -9,7 +9,11 @@ function applyTheme(dark) {
   isDark = dark;
   document.documentElement.classList.toggle('light', !dark);
   themeIcon.textContent  = dark ? '☀' : '☾';
-  themeLabel.textContent = dark ? 'Light mode' : 'Dark mode';
+  
+  const labelKey = dark ? 'nav.lightMode' : 'nav.darkMode';
+  themeLabel.setAttribute('data-i18n', labelKey);
+  themeLabel.textContent = i18n.t(labelKey);
+
   // Redraw sparklines with new colors.
   Object.values(sparklines).forEach(s => s.draw());
 }
@@ -67,7 +71,7 @@ function setConnected(ok) {
 window.onDaemonStopped = function() {
   if (state.daemonRunning) {
     state.daemonRunning = false;
-    daemonBtn.textContent = '▶ Start Daemon';
+    daemonBtn.textContent = i18n.t('nav.startDaemon');
     daemonBtn.classList.remove('running');
     setConnected(false);
     stopStatsLoop();
@@ -85,19 +89,19 @@ daemonBtn.addEventListener('click', async () => {
     const ok = await callGo('startDaemon');
     if (ok) {
       state.daemonRunning = true;
-      daemonBtn.textContent = '■ Stop Daemon';
+      daemonBtn.textContent = i18n.t('nav.stopDaemon');
       daemonBtn.classList.add('running');
       setConnected(true);
       startStatsLoop();
     } else {
-      daemonBtn.textContent = '▶ Start Daemon';
+      daemonBtn.textContent = i18n.t('nav.startDaemon');
       appendLog('Failed to connect to device', 'err');
     }
   } else {
     daemonBtn.textContent = '… Stopping';
     await callGo('stopDaemon');
     state.daemonRunning = false;
-    daemonBtn.textContent = '▶ Start Daemon';
+    daemonBtn.textContent = i18n.t('nav.startDaemon');
     daemonBtn.classList.remove('running');
     setConnected(false);
     stopStatsLoop();
