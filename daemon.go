@@ -92,7 +92,10 @@ func syncCycle(dev *core.Device, cfg *DaemonConfig) error {
 		{RegID: core.RegBatteryPercent, Value: uint32(bat.Capacity)},
 		{RegID: core.RegBatteryType, Value: core.BatteryLevel(bat.Capacity)},
 
-		// Network: RX/TX counters in dedicated registers (not quality/status)
+		// WiFi Quality
+		{RegID: core.RegWifiQuality, Value: core.WifiQualityLevel(net.WifiQuality)},
+
+		// Network Traffic: RX/TX counters
 		{RegID: core.RegMediaDuration, Value: uint32(net.RXBytes / 1024)},
 		{RegID: core.RegMediaNow, Value: uint32(net.TXBytes / 1024)},
 	}
@@ -101,15 +104,21 @@ func syncCycle(dev *core.Device, cfg *DaemonConfig) error {
 		return fmt.Errorf("WriteNumRegisters: %w", err)
 	}
 
-	cfg.log("  CPU: %.1f%%  RAM: %d/%dMB  Bat: %d%%  RX: %dKB TX: %dKB",
+	cfg.log("  CPU: %.1f%%  RAM: %d/%dMB  Bat: %d%%  RX: %dKB TX: %dKB WiFi: %s (%d%%)",
 		cpu.UsagePercent,
 		mem.UsedMB, mem.TotalMB,
 		bat.Capacity,
 		net.RXBytes/1024, net.TXBytes/1024,
+		net.WifiSSID, net.WifiQuality,
 	)
 
-	// Active network interface
-	if net.Interface != "" {
+	// WiFi SSID
+	if net.WifiSSID != "" {
+		if _, err := dev.WriteStringRegister(core.RegWifiSSID, []byte(net.WifiSSID)); err != nil {
+			cfg.log("  warning: WriteStringRegister SSID: %v", err)
+		}
+	} else if net.Interface != "" {
+		// Fallback to interface name if no SSID
 		if _, err := dev.WriteStringRegister(core.RegWifiSSID, []byte(net.Interface)); err != nil {
 			cfg.log("  warning: WriteStringRegister interface: %v", err)
 		}
