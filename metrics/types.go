@@ -17,11 +17,13 @@ type UptimeMetrics struct {
 	Seconds int64
 }
 
-// NetworkMetrics holds per-interface network counters.
+// NetworkMetrics holds per-interface network counters and WiFi info.
 type NetworkMetrics struct {
-	Interface string
-	RXBytes   uint64
-	TXBytes   uint64
+	Interface   string
+	RXBytes     uint64
+	TXBytes     uint64
+	WifiSSID    string
+	WifiQuality int // 0-100 percentage
 }
 
 // BatteryMetrics holds battery capacity and charge status.

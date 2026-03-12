@@ -1,13 +1,14 @@
 function renderTextFrame(ctx, canvas, frame) {
-  ctx.clearRect(0, 0, canvas.width, canvas.height)
-  ctx.fillStyle = "#ffffff"
-  ctx.textBaseline = "top"
-
-  let y = 40
+  // We don't clear here if we want to draw on top of images
+  // The caller (renderCurrentView) clears the canvas.
 
   frame.texts.forEach(text => {
-    ctx.font = `${text.size}px system-ui`
-    ctx.fillText(text.text, 40, y)
-    y += text.size + 20
+    ctx.fillStyle = text.color || "#ffffff"
+    ctx.font = `${text.size}px 'Space Mono', monospace`
+    ctx.textBaseline = "top"
+    
+    // If X or Y are 0, we might want to keep the old stacking logic 
+    // but for now let's use the absolute positions
+    ctx.fillText(text.text, text.x, text.y)
   })
 }

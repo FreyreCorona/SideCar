@@ -5,12 +5,13 @@ async function renderImages(ctx, frame) {
 
     await new Promise(resolve => {
       img.onload = resolve
+      img.onerror = resolve // avoid hanging
     })
 
     ctx.drawImage(
       img,
-      40,
-      120,
+      imgBlock.x,
+      imgBlock.y,
       imgBlock.width,
       imgBlock.height
     )
