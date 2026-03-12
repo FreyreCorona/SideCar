@@ -1,45 +1,53 @@
 # SideCar
 
-SideCar is a lightweight, extensible engine for rendering content on auxiliary displays, such as the secondary screen found on devices like the Positivo Vision R15 M.
+SideCar is a modern, lightweight, and extensible utility designed to unlock the full potential of auxiliary displays, such as the secondary screens found on devices like the **Positivo Vision R15 M**.
 
-It is not a fixed-purpose application or a static viewer. SideCar acts as a **rendering runtime**, where content, layout, and style are defined through configuration files or scripts.
+Unlike generic monitor tools, SideCar is a specialized rendering engine that transforms raw system metrics into beautiful, structured dashboards.
 
-## Purpose
+## Key Features
 
-SideCar is built around a clear separation of concerns:
+- **Modern Dashboard UI:** A refined interface with indigo/violet accents, optimized for high legibility and professional aesthetics.
+- **Native Metrics:** "Pure Go" implementation for collecting CPU, RAM, Battery, and Network metrics without external binary dependencies.
+- **Advanced WiFi Monitoring:** Native SSID detection and signal quality monitoring (Linux).
+- **Power Intelligence:** Automatically manages device energy by detecting system sleep and wake events (Cross-platform).
+- **Responsive Design:** Adaptive interface that works perfectly in full screen or compact window modes.
+- **Lightweight & Portable:** Written in Go and JavaScript, designed to be fast and low-impact on system resources.
 
-- A **core engine** responsible for display communication and rendering
-- **Content definitions** provided via configuration or scripts
-- **Layout and styling** fully controlled by the user or the community
+## Setup & Permissions
 
-This design allows new panels, widgets, and visual styles to be added without modifying the core.
+To communicate with the auxiliary hardware via the serial port, SideCar requires specific system permissions.
 
-## Features
+### 🪟 Windows
+On Windows, the serial communication is restricted to administrative processes.
+- **Requirement:** Right-click the `SideCar.exe` and select **"Run as Administrator"**.
 
-- Lightweight and minimal core
-- Extensible architecture
-- Scriptable or configuration-driven content
-- Renderer decoupled from data sources
-- Designed for customization and community contributions
+### 🐧 Linux
+Linux systems restrict access to `/dev/ttyACM*` devices by default. You have two ways to grant access:
 
-## Philosophy
+#### Option A: Add your user to the `dialout` group (Recommended)
+This is the standard way to grant permanent access to serial ports.
+1. Run the following command in your terminal:
+   ```bash
+   sudo usermod -a -G dialout $USER
+   ```
+2. **Important:** You must log out and log back in for the changes to take effect.
 
-SideCar does not decide what should be displayed.  
-It only provides the tools to display it.
-
-An auxiliary screen is not a decorative element; it is an information surface.  
-SideCar exists to unlock its potential without enforcing a single use case.
-
-## Project Status
-
-🚧 Work in progress.  
-APIs and configuration formats are subject to change.
-
-## Name
-
-The name *SideCar* reflects the idea of something that accompanies the main system:  
-it does not replace it, compete with it, or take control — it simply extends it.
+#### Option B: Temporary access (Until reboot)
+If you just want to test it quickly:
+```bash
+sudo chmod 666 /dev/ttyACM0
+```
+*(Replace `ttyACM0` with your actual device port if different)*
 
 ---
 
-More documentation will be added as the project evolves.
+## Philosophy
+
+An auxiliary screen should not just be a decorative element; it is a vital information surface. SideCar exists to provide a bridge between your system's heartbeat and that surface, focusing on **security**, **performance**, and **clean design**.
+
+## Project Status
+
+🚧 **Active Development.** Features and dashboard layouts are being constantly refined to match professional standards.
+
+---
+© 2026 SideCar Project. Built for performance and style.
