@@ -21,6 +21,7 @@ import (
 
 	"github.com/FreyreCorona/SideCar/core"
 	"github.com/FreyreCorona/SideCar/metrics"
+	"github.com/FreyreCorona/SideCar/power"
 
 	wv "github.com/abemedia/go-webview"
 	_ "github.com/abemedia/go-webview/embedded"
@@ -35,6 +36,7 @@ type UIState struct {
 	daemonCancel context.CancelFunc
 	win          wv.WebView
 	uploadProg   func(int)
+	powerMonitor power.Monitor
 }
 
 var uiState UIState
@@ -50,6 +52,23 @@ func runUI() error {
 			w.Eval(fmt.Sprintf(`window.onUploadProgress && window.onUploadProgress(%d)`, pct))
 		})
 	}
+
+	// Setup Power Monitor
+	uiState.powerMonitor = power.NewMonitor()
+	uiState.powerMonitor.Start(func(event power.PowerEvent) {
+		dev := uiState.dev.Load()
+		if dev == nil {
+			return
+		}
+		if event == power.Sleep {
+			log.Println("UI: System sleep detected, sending device to sleep")
+			dev.Sleep()
+		} else if event == power.Wake {
+			log.Println("UI: System wake detected, waking device")
+			dev.Wake()
+		}
+	})
+	defer uiState.powerMonitor.Stop()
 
 	w.SetTitle("SideCar")
 	w.SetSize(960, 620, wv.HintNone)
