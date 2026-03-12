@@ -1,4 +1,4 @@
-// ── Theme ────────────────────────────────────────────────────
+// Theme
 const themeToggle = document.getElementById('themeToggle');
 const themeIcon   = document.getElementById('themeIcon');
 const themeLabel  = document.getElementById('themeLabel');
@@ -24,7 +24,7 @@ themeToggle.addEventListener('click', () => {
   sessionStorage.setItem('theme', isDark ? 'dark' : 'light');
 });
 
-// ── State ────────────────────────────────────────────────────
+// State 
 const state = {
   daemonRunning : false,
   connected     : false,
@@ -36,7 +36,7 @@ const state = {
   brightness    : 100,
 };
 
-// ── DOM refs ─────────────────────────────────────────────────
+// DOM refs 
 const statusDot   = document.getElementById('statusDot');
 const statusLabel = document.getElementById('statusLabel');
 const devicePill  = document.getElementById('devicePill');
@@ -45,7 +45,7 @@ const pageLabel   = document.getElementById('pageLabel');
 const canvas      = document.getElementById('previewCanvas');
 const ctx         = canvas ? canvas.getContext('2d') : null;
 
-// ── Tab switching ─────────────────────────────────────────────
+// Tab switching
 document.querySelectorAll('.nav-item').forEach(item => {
   item.addEventListener('click', () => {
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -55,7 +55,7 @@ document.querySelectorAll('.nav-item').forEach(item => {
   });
 });
 
-// ── Device status ─────────────────────────────────────────────
+// Device status 
 function setConnected(ok) {
   state.connected = ok;
   statusDot.className   = 'dot' + (ok ? ' active' : '');
@@ -75,7 +75,7 @@ window.onDaemonStopped = function() {
   }
 };
 
-// ── Daemon ────────────────────────────────────────────────────
+// Daemon
 daemonBtn.addEventListener('click', async () => {
   if (daemonBtn.disabled) return;
   daemonBtn.disabled = true;
@@ -106,7 +106,7 @@ daemonBtn.addEventListener('click', async () => {
   daemonBtn.disabled = false;
 });
 
-// ── View navigation ───────────────────────────────────────────
+// View navigation 
 document.getElementById('nextViewBtn').addEventListener('click', async () => {
   await callGo('nextView');
   state.currentView = (state.currentView + 1) % state.totalViews;
@@ -127,7 +127,7 @@ function updatePageLabel() {
 
 window.onViewChanged = function() { renderCurrentView(); };
 
-// ── Canvas preview ────────────────────────────────────────────
+// Canvas preview
 async function renderCurrentView() {
   if (!ctx) return;
   try {
@@ -139,7 +139,7 @@ async function renderCurrentView() {
   } catch (e) { /* device may not be connected */ }
 }
 
-// ── Sparklines ────────────────────────────────────────────────
+// Sparklines
 const SPARK_MAX = 20; // data points kept
 
 class Sparkline {
@@ -209,7 +209,7 @@ const sparklines = {
 };
 sparklines.temp.maxVal = 120;
 
-// ── Stats loop ────────────────────────────────────────────────
+// Stats loop 
 let statsInterval = null;
 
 function startStatsLoop() {
@@ -297,7 +297,7 @@ function fmtUptime(s) {
   return `${h}h ${m}m`;
 }
 
-// ── Brightness ────────────────────────────────────────────────
+// Brightness 
 const slider = document.getElementById('brightnessSlider');
 const bVal   = document.getElementById('brightnessVal');
 let bTimer   = null;
@@ -307,7 +307,7 @@ slider.addEventListener('input', () => {
   bTimer = setTimeout(() => callGo('setBrightness', parseInt(slider.value)), 250);
 });
 
-// ── Upload ────────────────────────────────────────────────────
+// Upload 
 const uploadZone    = document.getElementById('uploadZone');
 const fileInput     = document.getElementById('fileInput');
 const uploadBtn     = document.getElementById('uploadBtn');
@@ -484,7 +484,7 @@ function appendLog(msg, kind) {
   uploadLog.scrollTop = uploadLog.scrollHeight;
 }
 
-// ── Settings ──────────────────────────────────────────────────
+// Settings
 document.getElementById('wakeBtn').addEventListener('click', () => callGo('wake'));
 document.getElementById('sleepBtn').addEventListener('click', () => callGo('sleep'));
 document.getElementById('rebootBtn').addEventListener('click', async () => {
@@ -504,7 +504,7 @@ document.getElementById('refreshPortsBtn').addEventListener('click', async () =>
   });
 });
 
-// ── callGo helper ─────────────────────────────────────────────
+// callGo helper
 async function callGo(name, ...args) {
   if (typeof window[name] === 'function') {
     try {
@@ -517,7 +517,7 @@ async function callGo(name, ...args) {
   return null;
 }
 
-// ── Init ──────────────────────────────────────────────────────
+// Init
 updatePageLabel();
 
 if (ctx) {

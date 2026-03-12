@@ -11,7 +11,6 @@
  */
 
 const i18n = (() => {
-  // ── Translation tables ────────────────────────────────────────────────────
 
   const translations = {
     en: {
@@ -143,15 +142,11 @@ const i18n = (() => {
     },
   };
 
-  // ── State ─────────────────────────────────────────────────────────────────
-
   // Detect locale from the browser; fall back to "en"
-  const browserLocale = (navigator.language || "en").startsWith("pt") ? "pt-BR" : "en";
-  let currentLocale = browserLocale;
+  let currentLocale = (navigator.language || "en").startsWith("pt") ? "pt-BR" : "en";
 
-  // ── Public API ────────────────────────────────────────────────────────────
 
-  /**
+  /*
    * Translate a key. Falls back to English, then to the key itself.
    * @param {string} key
    * @returns {string}
@@ -162,7 +157,7 @@ const i18n = (() => {
       || key;
   }
 
-  /**
+  /*
    * Switch the active locale and re-render all data-i18n elements.
    * @param {"en"|"pt-BR"} locale
    */
@@ -172,15 +167,14 @@ const i18n = (() => {
     applyToDOM();
   }
 
-  /** Returns the currently active locale string. */
+  //Returns the currently active locale string.
   function getLocale() {
     return currentLocale;
   }
 
-  /**
-   * Apply translations to all elements that have a data-i18n attribute.
-   * Call this once after the DOM is ready, and again after setLocale().
-   */
+  
+  //Apply translations to all elements that have a data-i18n attribute.
+  //Call this once after the DOM is ready, and again after setLocale().
   function applyToDOM() {
     document.querySelectorAll("[data-i18n]").forEach(el => {
       const key = el.getAttribute("data-i18n");
