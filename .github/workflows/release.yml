@@ -46,10 +46,16 @@ jobs:
         run: |
           mkdir -p dist
           EXT=""
-          if [ "${{ matrix.goos }}" = "windows" ]; then EXT=".exe"; fi
-          
+          LDFLAGS="-s -w"
+
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            EXT=".exe"
+            LDFLAGS="${LDFLAGS} -H=windowsgui"
+          fi
+
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
-          go build -o dist/${{github.event.repository.name}}-${{ matrix.goos }}-${{ matrix.goarch }}$EXT .
+          go build -trimpath -ldflags="${LDFLAGS}" \
+            -o dist/${{ github.event.repository.name }}-${{ matrix.goos }}-${{ matrix.goarch }}$EXT .
 
       - name: Upload Release
         uses: softprops/action-gh-release@v2
