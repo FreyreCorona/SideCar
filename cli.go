@@ -12,7 +12,7 @@ import (
 	"github.com/FreyreCorona/SideCar/core"
 )
 
-func runCLI(args []string) error {
+func runCLI(args []string, defaultLog io.Writer) error {
 	fs := flag.NewFlagSet("sidecar", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
@@ -21,6 +21,7 @@ func runCLI(args []string) error {
 	baud := fs.Uint("baud", 115200, "baud rate")
 	cmd := fs.String("cmd", "", "command to run (required)")
 	help := fs.Bool("help", false, "display command help")
+	logFile := fs.String("log", "", "path to log file (overrides global -log)")
 
 	// Per-command flags
 	brightness := fs.Int("brightness", 100, "brightness level 0-100 [cmd: on, brightness]")
@@ -46,12 +47,22 @@ func runCLI(args []string) error {
 		return nil
 	}
 
+	out := defaultLog
+	if *logFile != "" {
+		f, err := os.OpenFile(*logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to open cli log file: %w", err)
+		}
+		defer f.Close()
+		out = f
+	}
+
 	dev, err := connect(*device, int(*baud))
 	if err != nil {
 		return err
 	}
 	defer dev.Close()
-	dev.SetLogger(os.Stdout)
+	dev.SetLogger(out)
 
 	switch *cmd {
 
@@ -252,12 +263,13 @@ Commands:
 Global options:
   -device string   serial port path or 'auto' (default "auto")
   -baud uint       baud rate (default 115200)
+  -log string      path to log file (default: stdout/stderr)
   -help            show help; combined with -cmd shows command-specific help
 
 Examples:
   sidecar -cmd on
   sidecar -cmd on -brightness 80
-  sidecar -cmd off -device /dev/ttyUSB0
+  sidecar -cmd off -device /dev/ttyUSB0 -log sidecar.log
   sidecar -cmd upload -file Texture.acf -type texture
   sidecar -cmd write-reg -reg 0x0001 -val 3
   sidecar -cmd write-str -reg 0x0010 -str "Hello world"

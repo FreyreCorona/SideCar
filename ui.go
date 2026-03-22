@@ -41,7 +41,7 @@ type UIState struct {
 
 var uiState UIState
 
-func runUI() error {
+func runUI(logOut io.Writer) error {
 	debug := os.Getenv("SIDECAR_DEBUG") == "1"
 	w := wv.New(debug)
 	defer w.Destroy()
@@ -119,7 +119,7 @@ func runUI() error {
 		uiState.daemonCtx = ctx
 		uiState.daemonCancel = cancel
 
-		go runUIMetricsLoop(ctx, dev, w)
+		go runUIMetricsLoop(ctx, dev, w, logOut)
 
 		return true
 	})
@@ -332,7 +332,7 @@ func runUI() error {
 
 // runUIMetricsLoop syncs metrics using the already-connected device.
 // If the device fails, it clears the state and notifies the UI.
-func runUIMetricsLoop(ctx context.Context, dev *core.Device, w wv.WebView) {
+func runUIMetricsLoop(ctx context.Context, dev *core.Device, w wv.WebView, logOut io.Writer) {
 	defer func() {
 		w.Dispatch(func() {
 			w.Eval(`window.onDaemonStopped && window.onDaemonStopped()`)
@@ -352,7 +352,7 @@ func runUIMetricsLoop(ctx context.Context, dev *core.Device, w wv.WebView) {
 			return
 
 		case <-ticker.C:
-			if err := syncCycle(dev, &DaemonConfig{Interval: 5 * time.Second, Log: io.Discard}); err != nil {
+			if err := syncCycle(dev, &DaemonConfig{Interval: 5 * time.Second, Log: logOut}); err != nil {
 				log.Println("runUIMetricsLoop: syncCycle error — device disconnected:", err)
 
 				uiState.dev.Store(nil)
