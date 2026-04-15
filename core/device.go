@@ -39,6 +39,7 @@ func (d *Device) Close() error {
 
 // send sends a command and waits for exactly one response of the expected type.
 func (d *Device) send(cmd *Command, expect CommandType, timeout time.Duration) (*Response, error) {
+	d.serial.Drain()
 	if err := d.serial.Write(cmd.Frame()); err != nil {
 		return nil, fmt.Errorf("send %s: %w", cmd.Type, err)
 	}
@@ -53,6 +54,7 @@ func (d *Device) send(cmd *Command, expect CommandType, timeout time.Duration) (
 func (d *Device) sendWithRetry(cmd *Command, expect CommandType, timeout time.Duration, maxRetries int) (*Response, error) {
 	var lastErr error
 	for attempt := 0; maxRetries == 0 || attempt <= maxRetries; attempt++ {
+		d.serial.Drain()
 		if err := d.serial.Write(cmd.Frame()); err != nil {
 			return nil, fmt.Errorf("sendWithRetry write %s: %w", cmd.Type, err)
 		}

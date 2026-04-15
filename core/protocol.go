@@ -20,9 +20,7 @@ var (
 // Searches for the start flag, validates structure, CRC and end flag.
 func ReadResponse(p *SerialPort, timeout time.Duration) (*Response, error) {
 	deadline := time.Now().Add(timeout)
-
-	buf := make([]byte, 0, 256)
-	tmp := make([]byte, 64)
+	tmp := make([]byte, 512)
 
 	for {
 		if time.Now().After(deadline) {
@@ -33,30 +31,29 @@ func ReadResponse(p *SerialPort, timeout time.Duration) (*Response, error) {
 		if err != nil {
 			return nil, err
 		}
-		if n == 0 {
-			continue
+
+		if n > 0 {
+			p.buf = append(p.buf, tmp[:n]...)
 		}
 
-		buf = append(buf, tmp[:n]...)
-
-		resp, consumed, err := tryParseFrame(buf)
+		resp, consumed, err := tryParseFrame(p.buf)
 		if err == errNeedMore {
-			// Not enough bytes yet, keep reading
-			if len(buf) > 4096 {
-				// Discard up to the next start flag to avoid unbounded growth
-				buf = discardUntilStartFlag(buf[1:])
+			if len(p.buf) > 8192 {
+				p.buf = discardUntilStartFlag(p.buf[1:])
+			}
+			if n == 0 {
+				time.Sleep(10 * time.Millisecond)
 			}
 			continue
 		}
 
 		if err != nil {
-			// Invalid frame at this position, advance and look for the next start flag
-			buf = discardUntilStartFlag(buf[1:])
+			p.buf = discardUntilStartFlag(p.buf[1:])
 			continue
 		}
 
-		// Valid frame
-		_ = consumed
+		// Success: remove consumed bytes from the persistent buffer
+		p.buf = p.buf[consumed:]
 		return resp, nil
 	}
 }
