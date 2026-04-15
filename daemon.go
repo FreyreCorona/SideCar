@@ -68,7 +68,9 @@ func RunDaemon(ctx context.Context, cfg DaemonConfig) error {
 
 		case <-ticker.C:
 			if err := syncCycle(dev, &cfg); err != nil {
-				return fmt.Errorf("daemon: sync cycle error: %w", err)
+				cfg.log("  error: sync cycle failed: %v", err)
+				// Wait a bit before next attempt if it failed
+				time.Sleep(1 * time.Second)
 			}
 		}
 	}
