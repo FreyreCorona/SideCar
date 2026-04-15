@@ -230,7 +230,7 @@ html, body {
 .screen-face { background:#000; border-radius:12px; overflow:hidden; border: 1px solid #18181b; }
 #previewCanvas { display:block; width:240px; height:240px; image-rendering:pixelated; }
 
-.screen-controls { display:flex; align-items:center; gap:16px; margin-top: 8px; }
+.screen-controls { display:flex; align-items:center; justify-content: center; gap:16px; margin-top: 8px; }
 .ctrl-btn {
   background:var(--surface); border:1px solid var(--border); color:var(--text2);
   border-radius:50%; width:40px; height:40px; cursor:pointer; font-size:14px;
@@ -353,29 +353,45 @@ html, body {
   .sidebar-footer { border-top: none; padding-top: 0; align-items: center; gap: 15px; }
   
   .daemon-btn { 
-    width: 44px; height: 44px; padding: 0; 
-    display: flex; align-items: center; justify-content: center; 
-    border-radius: 50%; font-size: 0 !important; /* Oculta todo el texto */
-    overflow: hidden; 
+    width: 44px !important; 
+    height: 44px !important; 
+    padding: 0 !important; 
+    display: flex !important; 
+    align-items: center !important; 
+    justify-content: center !important; 
+    border-radius: 50% !important; 
+    overflow: hidden !important; 
+    font-size: 0 !important; 
   }
-  .daemon-btn::first-letter { 
-    font-size: 20px !important; 
-    color: white !important; 
-    display: block;
-    width: 100%;
-    text-align: center;
+  .daemon-btn span[data-i18n] { display: none !important; }
+  .daemon-btn::after { 
+    content: '▶' !important;
+    font-size: 16px !important;
+    color: white !important;
+    display: block !important;
+  }
+  .daemon-btn.running::after { 
+    content: '■' !important;
   }
 
   .lang-row { padding: 0; border: none; background: transparent; width: 44px; height: 44px; justify-content: center; }
+  .lang-row .ctrl-label { display: none !important; }
   .select-input--sm { 
-    width: 44px; height: 44px; padding: 0;
-    text-align: center; background: var(--surface2) !important; 
-    border: 1px solid var(--border); border-radius: 50%; 
-    display: flex; align-items: center; justify-content: center;
-    font-size: 24px !important; /* Grande para que solo quepa el emoji */
-    line-height: 44px;
-    text-indent: 0;
-    overflow: hidden;
+    width: 44px !important; 
+    height: 44px !important; 
+    padding: 0 !important;
+    text-align: center; 
+    background: var(--surface2) !important; 
+    border: 1px solid var(--border) !important; 
+    border-radius: 50% !important; 
+    display: flex !important; 
+    align-items: center !important; 
+    justify-content: center !important;
+    font-size: 20px !important;
+    line-height: 44px !important;
+    overflow: hidden !important;
+    cursor: pointer !important;
+    -webkit-appearance: none !important;
   }
   
   .main { padding: 32px 24px; }
