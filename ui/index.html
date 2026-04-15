@@ -69,11 +69,24 @@
                 <canvas id="previewCanvas" width="240" height="240"></canvas>
               </div>
             </div>
+
+            <!-- Software View Controls -->
             <div class="screen-controls">
               <button class="ctrl-btn" id="prevViewBtn">◀</button>
               <span class="page-label" id="pageLabel" data-i18n="monitor.pageCPU">CPU &amp; RAM</span>
               <button class="ctrl-btn" id="nextViewBtn">▶</button>
             </div>
+
+            <!-- Device Page Controls -->
+            <div class="screen-controls" style="margin-top: 0">
+              <button class="ctrl-btn" id="prevPageBtn">◀</button>
+              <div style="display:flex; flex-direction:column; align-items:center; min-width:80px;">
+                <span style="font-size:9px; font-weight:700; color:var(--muted); text-transform:uppercase; margin-bottom:2px;" data-i18n="monitor.devicePage">Device Page</span>
+                <span class="page-label" id="devicePageLabel" style="min-width:0">1</span>
+              </div>
+              <button class="ctrl-btn" id="nextPageBtn">▶</button>
+            </div>
+
             <div class="brightness-row">
               <label class="ctrl-label" data-i18n="monitor.brightness">Brightness</label>
               <input type="range" min="0" max="100" value="100" class="brightness-slider" id="brightnessSlider" />
@@ -251,14 +264,6 @@
           <div class="settings-row">
             <input type="number" class="num-input" id="intervalInput" value="5" min="1" max="60" />
             <span class="unit-label" data-i18n="settings.seconds">seconds</span>
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <div class="settings-label" data-i18n="settings.page">Device Page</div>
-          <div class="settings-row">
-            <input type="number" class="num-input" id="pageInput" value="1" min="1" max="10" />
-            <button class="sm-btn" id="setPageBtn" data-i18n="settings.setPage">Set</button>
           </div>
         </div>
 

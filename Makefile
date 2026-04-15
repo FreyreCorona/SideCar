@@ -1,3 +1,4 @@
+.PHONY: ui
 # Binary name
 BINARY_NAME=sidecar
 

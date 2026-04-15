@@ -34,6 +34,7 @@ const state = {
   connected     : false,
   currentView   : 0,
   totalViews    : 3,
+  devicePage    : 1,
   selectedFile  : null,
   isImageFile   : false,
   convertedACF  : null,  // []int after conversion
@@ -46,6 +47,8 @@ const statusLabel = document.getElementById('statusLabel');
 const devicePill  = document.getElementById('devicePill');
 const daemonBtn   = document.getElementById('daemonBtn');
 const pageLabel   = document.getElementById('pageLabel');
+const devicePageLabel = document.getElementById('devicePageLabel');
+const pageInput   = document.getElementById('pageInput');
 const canvas      = document.getElementById('previewCanvas');
 const ctx         = canvas ? canvas.getContext('2d') : null;
 
@@ -127,6 +130,25 @@ document.getElementById('prevViewBtn').addEventListener('click', async () => {
 function updatePageLabel() {
   const names = ['CPU & RAM', 'Network', 'Power'];
   pageLabel.textContent = names[state.currentView] || `View ${state.currentView + 1}`;
+}
+
+// Device Page navigation
+document.getElementById('nextPageBtn').addEventListener('click', () => {
+  setDevicePage(state.devicePage + 1);
+});
+document.getElementById('prevPageBtn').addEventListener('click', () => {
+  setDevicePage(state.devicePage - 1);
+});
+
+async function setDevicePage(page) {
+  if (page < 1) page = 1;
+  if (page > 10) page = 10;
+  state.devicePage = page;
+  
+  if (devicePageLabel) devicePageLabel.textContent = state.devicePage;
+  if (pageInput) pageInput.value = state.devicePage;
+  
+  await callGo('showPage', state.devicePage);
 }
 
 window.onViewChanged = function() { renderCurrentView(); };
@@ -493,9 +515,6 @@ document.getElementById('wakeBtn').addEventListener('click', () => callGo('wake'
 document.getElementById('sleepBtn').addEventListener('click', () => callGo('sleep'));
 document.getElementById('rebootBtn').addEventListener('click', async () => {
   if (confirm('Reboot the device?')) callGo('reboot');
-});
-document.getElementById('setPageBtn').addEventListener('click', () => {
-  callGo('showPage', parseInt(document.getElementById('pageInput').value));
 });
 document.getElementById('refreshPortsBtn').addEventListener('click', async () => {
   const ports = await callGo('listPorts');

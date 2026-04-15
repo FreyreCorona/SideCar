@@ -43,6 +43,7 @@ const i18n = (() => {
       "monitor.pageCPU":    "CPU & RAM",
       "monitor.pageNet":    "Network",
       "monitor.pagePower":  "Power",
+      "monitor.devicePage": "Device Page",
 
       // Upload tab
       "upload.title":       "Upload",
