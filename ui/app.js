@@ -160,8 +160,16 @@ async function renderCurrentView() {
     const frame = await window.getCurrentFrame();
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, 240, 240);
+    
+    // Save state
+    ctx.save();
+    
+    // Attempt to center by default, or look for bounding box
+    // This is a placeholder for actual centering logic once renderers are checked
     if (frame && frame.texts)  renderTextFrame(ctx, canvas, frame);
     if (frame && frame.images) await renderImages(ctx, frame);
+    
+    ctx.restore();
   } catch (e) { /* device may not be connected */ }
 }
 
