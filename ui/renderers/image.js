@@ -8,10 +8,14 @@ async function renderImages(ctx, frame) {
       img.onerror = resolve // avoid hanging
     })
 
+    // Centered in the 240x240 canvas
+    const x = 120 - (imgBlock.width / 2);
+    const y = 120 - (imgBlock.height / 2);
+
     ctx.drawImage(
       img,
-      imgBlock.x,
-      imgBlock.y,
+      x,
+      y,
       imgBlock.width,
       imgBlock.height
     )
