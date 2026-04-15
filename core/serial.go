@@ -10,6 +10,7 @@ import (
 
 type SerialPort struct {
 	port serial.Port
+	buf  []byte
 }
 
 func OpenSerial(device string, baud int) (*SerialPort, error) {
@@ -31,17 +32,20 @@ func OpenSerial(device string, baud int) (*SerialPort, error) {
 	}
 
 	time.Sleep(300 * time.Millisecond)
-	drain(p, 500*time.Millisecond)
 
-	return &SerialPort{port: p}, nil
+	sp := &SerialPort{port: p, buf: make([]byte, 0, 4096)}
+	sp.Drain()
+
+	return sp, nil
 }
 
-func drain(p serial.Port, duration time.Duration) {
-	deadline := time.Now().Add(duration)
-	buf := make([]byte, 256)
-
+// Drain clears both the OS serial buffer and the internal Go buffer.
+func (s *SerialPort) Drain() {
+	s.buf = s.buf[:0]
+	deadline := time.Now().Add(100 * time.Millisecond)
+	tmp := make([]byte, 256)
 	for time.Now().Before(deadline) {
-		if _, err := p.Read(buf); err != nil {
+		if n, err := s.port.Read(tmp); err != nil || n == 0 {
 			return
 		}
 	}
