@@ -44,8 +44,6 @@ func RunDaemon(ctx context.Context, cfg DaemonConfig) error {
 	if err != nil {
 		return fmt.Errorf("daemon: connection failed: %w", err)
 	}
-	defer dev.Close()
-
 	if cfg.Log != nil {
 		dev.SetLogger(cfg.Log)
 	}
@@ -64,14 +62,43 @@ func RunDaemon(ctx context.Context, cfg DaemonConfig) error {
 		select {
 		case <-ctx.Done():
 			cfg.log("→ daemon stopped")
+			dev.Close()
 			return nil
 
 		case <-ticker.C:
 			if err := syncCycle(dev, &cfg); err != nil {
 				cfg.log("  error: sync cycle failed: %v", err)
-				// Wait a bit before next attempt if it failed
-				time.Sleep(1 * time.Second)
+				dev.Close()
+				dev = reconnectLoop(ctx, cfg)
+				if dev == nil {
+					cfg.log("  failed to reconnect, daemon exiting")
+					return fmt.Errorf("daemon: reconnection failed")
+				}
+				cfg.log("✓ reconnected to device")
+				if err := syncDateTime(dev); err != nil {
+					cfg.log("  warning: could not sync date/time after reconnect: %v", err)
+				}
 			}
+		}
+	}
+}
+
+// reconnectLoop attempts to reconnect to the device until successful or context is cancelled.
+func reconnectLoop(ctx context.Context, cfg DaemonConfig) *core.Device {
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(3 * time.Second):
+			cfg.log("  attempting to reconnect...")
+			dev, err := connect(cfg.Device, cfg.Baud)
+			if err == nil {
+				if cfg.Log != nil {
+					dev.SetLogger(cfg.Log)
+				}
+				return dev
+			}
+			cfg.log("  reconnect failed: %v", err)
 		}
 	}
 }
