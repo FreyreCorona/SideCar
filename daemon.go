@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	"github.com/FreyreCorona/SideCar/core"
@@ -58,29 +59,89 @@ func RunDaemon(ctx context.Context, cfg DaemonConfig) error {
 	ticker := time.NewTicker(cfg.interval())
 	defer ticker.Stop()
 
+	// Hot-plug: monitor device path existence
+	devicePath := getDevicePath(dev)
+	hotPlugTicker := time.NewTicker(2 * time.Second)
+	defer hotPlugTicker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			cfg.log("→ daemon stopped")
-			dev.Close()
+			if dev != nil {
+				dev.Close()
+			}
 			return nil
 
 		case <-ticker.C:
 			if err := syncCycle(dev, &cfg); err != nil {
 				cfg.log("  error: sync cycle failed: %v", err)
-				dev.Close()
-				dev = reconnectLoop(ctx, cfg)
-				if dev == nil {
+				if dev != nil {
+					dev.Close()
+					dev = nil
+				}
+				newDev := reconnectLoop(ctx, cfg)
+				if newDev == nil {
 					cfg.log("  failed to reconnect, daemon exiting")
 					return fmt.Errorf("daemon: reconnection failed")
 				}
+				dev = newDev
+				devicePath = getDevicePath(dev)
 				cfg.log("✓ reconnected to device")
+				if err := syncDateTime(dev); err != nil {
+					cfg.log("  warning: could not sync date/time after reconnect: %v", err)
+				}
+			}
+
+		case <-hotPlugTicker.C:
+			// Check if device was physically disconnected
+			if dev != nil && devicePath != "" && !deviceExists(devicePath) {
+				cfg.log("  device physically disconnected: %s", devicePath)
+				dev.Close()
+				dev = nil
+				newDev := reconnectLoop(ctx, cfg)
+				if newDev == nil {
+					cfg.log("  failed to reconnect, daemon exiting")
+					return fmt.Errorf("daemon: reconnection failed")
+				}
+				dev = newDev
+				devicePath = getDevicePath(dev)
+				cfg.log("✓ reconnected to device after hot-plug")
 				if err := syncDateTime(dev); err != nil {
 					cfg.log("  warning: could not sync date/time after reconnect: %v", err)
 				}
 			}
 		}
 	}
+}
+
+// getDevicePath attempts to find the device path by checking current ports.
+// This is a best-effort approach since Device doesn't expose the path directly.
+func getDevicePath(dev *core.Device) string {
+	// Try handshake to see if device is still responsive
+	// If it fails, the device might be physically disconnected
+	_, err := dev.Handshake()
+	if err == nil {
+		// Device is responsive, try to find it in the port list
+		ports, err := core.FindSerialDevices()
+		if err == nil && len(ports) > 0 {
+			// Return the first available port (simplified)
+			return ports[0]
+		}
+	}
+	return ""
+}
+
+// deviceExists checks if a device path still exists in /dev
+func deviceExists(path string) bool {
+	if path == "" {
+		// If we don't have a path, try to find any available port
+		ports, err := core.FindSerialDevices()
+		return err == nil && len(ports) > 0
+	}
+	// Check if the specific path exists
+	_, err := os.Stat(path)
+	return !os.IsNotExist(err)
 }
 
 // reconnectLoop attempts to reconnect to the device until successful or context is cancelled.

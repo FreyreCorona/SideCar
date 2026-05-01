@@ -376,7 +376,8 @@ func runUIMetricsLoop(ctx context.Context, dev *core.Device, w wv.WebView, logOu
 					uiState.daemonCancel = nil
 				}
 
-				dev.Close() // close the port
+				// Clear dev reference to prevent double-close in RunDaemon's defer
+				dev = nil
 				return
 			}
 		}
