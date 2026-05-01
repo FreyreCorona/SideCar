@@ -41,12 +41,17 @@
         <button class="daemon-btn" id="daemonBtn" data-i18n="nav.startDaemon">▶ Start Daemon</button>
 
         <!-- Language selector -->
-        <div class="lang-row">
+        <div class="lang-row" id="langExpanded">
           <span class="ctrl-label" data-i18n="lang.label">Language</span>
           <select class="select-input select-input--sm" id="langSelect">
             <option value="en">🇺🇸 English</option>
             <option value="pt-BR">🇧🇷 Português</option>
           </select>
+        </div>
+        <!-- Compact flag buttons for collapsed sidebar -->
+        <div class="lang-row--collapsed" id="langCollapsed">
+          <button class="flag-btn" data-lang="en" title="English">🇺🇸</button>
+          <button class="flag-btn" data-lang="pt-BR" title="Português">🇧🇷</button>
         </div>
 
         <div class="version" id="versionLabel">SideCar v0.1</div>
@@ -290,14 +295,34 @@
     document.addEventListener("DOMContentLoaded", () => {
       i18n.applyToDOM();
 
-      // Wire up the language selector
+      // Wire up the language selector (expanded mode)
       const sel = document.getElementById("langSelect");
       sel.value = i18n.getLocale();
       sel.addEventListener("change", () => {
         i18n.setLocale(sel.value);
         document.documentElement.lang = sel.value === "pt-BR" ? "pt" : "en";
+        syncFlagButtons(sel.value);
       });
+
+      // Wire up compact flag buttons (collapsed sidebar)
+      document.querySelectorAll('.flag-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const lang = btn.dataset.lang;
+          sel.value = lang;
+          i18n.setLocale(lang);
+          document.documentElement.lang = lang === "pt-BR" ? "pt" : "en";
+          syncFlagButtons(lang);
+        });
+      });
+      syncFlagButtons(sel.value);
     });
+
+    // Sync active state on flag buttons
+    function syncFlagButtons(activeLang) {
+      document.querySelectorAll('.flag-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.lang === activeLang);
+      });
+    }
   </script>
 </body>
 </html>

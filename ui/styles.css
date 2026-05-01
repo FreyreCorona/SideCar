@@ -178,6 +178,39 @@ html, body {
 .lang-row:focus-within { border-color: var(--accent); background: var(--surface3); }
 .lang-row .ctrl-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); white-space: nowrap; }
 
+/* Compact flag buttons for collapsed sidebar */
+.lang-row--collapsed {
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  width: 44px;
+}
+.flag-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface2);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  padding: 0;
+  line-height: 1;
+}
+.flag-btn:hover {
+  border-color: var(--accent);
+  background: var(--surface3);
+  transform: scale(1.1);
+}
+.flag-btn.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
+}
+
 .select-input--sm {
   padding: 4px 0; border: none; background: transparent !important;
   font-size: 11px; height: 32px; font-weight: 600; color: var(--text) !important;
@@ -374,8 +407,9 @@ html, body {
     content: '■' !important;
   }
 
-  .lang-row { padding: 0; border: none; background: transparent; width: 44px; height: 44px; justify-content: center; }
+  .lang-row { padding: 0; border: none; background: transparent; width: 44px; height: 44px; justify-content: center; display: none; }
   .lang-row .ctrl-label { display: none !important; }
+  .lang-row--collapsed { display: flex !important; }
   .select-input--sm { 
     width: 44px !important; 
     height: 44px !important; 
@@ -392,6 +426,12 @@ html, body {
     overflow: hidden !important;
     cursor: pointer !important;
     -webkit-appearance: none !important;
+    text-indent: 0 !important;
+  }
+  /* Hide text, show only flag emoji in collapsed mode */
+  .select-input--sm option { 
+    font-size: 14px !important; 
+    text-align: left;
   }
   
   .main { padding: 32px 24px; }
