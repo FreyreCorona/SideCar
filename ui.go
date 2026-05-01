@@ -276,7 +276,7 @@ func runUI(logOut io.Writer) error {
 
 		// Convert to RGB565 big-endian: RRRRR GGGGGG BBBBB
 		pixelCount := targetW * targetH
-		acf := make([]byte, pixelCount*2)
+		rawImg := make([]byte, pixelCount*2)
 		for y := 0; y < targetH; y++ {
 			for x := 0; x < targetW; x++ {
 				c := rgba.RGBAAt(x, y)
@@ -285,10 +285,24 @@ func runUI(logOut io.Writer) error {
 				b5 := uint16(c.B) >> 3
 				rgb565 := (r5 << 11) | (g6 << 5) | b5
 				idx := (y*targetW + x) * 2
-				acf[idx] = byte(rgb565 >> 8)
-				acf[idx+1] = byte(rgb565)
+				rawImg[idx] = byte(rgb565 >> 8)
+				rawImg[idx+1] = byte(rgb565)
 			}
 		}
+
+		// ACF format: [4 bytes LE size][2 bytes width LE][2 bytes height LE][raw RGB565 data]
+		// This matches the format expected by the Minitela texture loader
+		acf := make([]byte, 8+len(rawImg))
+		imgSize := uint32(len(rawImg))
+		acf[0] = byte(imgSize)
+		acf[1] = byte(imgSize >> 8)
+		acf[2] = byte(imgSize >> 16)
+		acf[3] = byte(imgSize >> 24)
+		acf[4] = byte(targetW)
+		acf[5] = byte(targetW >> 8)
+		acf[6] = byte(targetH)
+		acf[7] = byte(targetH >> 8)
+		copy(acf[8:], rawImg)
 
 		result := make([]int, len(acf))
 		for i, b := range acf {
