@@ -231,9 +231,17 @@ func (d *Device) switchToDownloadMode() error {
 // waitForDownloadReady waits until a REQUEST_DOWNLOAD_RESPONSE with code 0 is received.
 func (d *Device) waitForDownloadReady() error {
 	deadline := time.Now().Add(60 * time.Second)
-	for {
-		resp, err := ReadResponse(d.serial, time.Until(deadline))
+	for time.Now().Before(deadline) {
+		// Use remaining time for each read attempt
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return ErrTimeout
+		}
+		resp, err := ReadResponse(d.serial, remaining)
 		if err != nil {
+			if errors.Is(err, ErrTimeout) {
+				return fmt.Errorf("waitForDownloadReady: %w", err)
+			}
 			return err
 		}
 		if resp.Type != CmdRequestDownloadResp {
@@ -250,6 +258,7 @@ func (d *Device) waitForDownloadReady() error {
 			return fmt.Errorf("requestDownload: error code 0x%08X", code)
 		}
 	}
+	return ErrTimeout
 }
 
 // sendChunk sends a data chunk and handles the "processing" pattern.
