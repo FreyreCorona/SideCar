@@ -149,17 +149,30 @@ func getSSIDNative(iface string) string {
 }
 
 func CollectBatteryMetrics() BatteryMetrics {
-	base := "/sys/class/power_supply/BAT0/"
-	capData, _ := os.ReadFile(base + "capacity")
-	statusData, _ := os.ReadFile(base + "status")
-
-	capacity, _ := strconv.Atoi(strings.TrimSpace(string(capData)))
-	status := strings.TrimSpace(string(statusData))
-
-	return BatteryMetrics{
-		Capacity: capacity,
-		Status:   status,
+	// Buscar cualquier batería disponible (BAT0, BAT1, etc.)
+	base := "/sys/class/power_supply/"
+	entries, err := os.ReadDir(base)
+	if err != nil {
+		return BatteryMetrics{}
 	}
+
+	for _, entry := range entries {
+		name := entry.Name()
+		if len(name) >= 3 && name[:3] == "BAT" {
+			capData, err1 := os.ReadFile(base + name + "/capacity")
+			statusData, err2 := os.ReadFile(base + name + "/status")
+			if err1 != nil || err2 != nil {
+				continue
+			}
+			capacity, _ := strconv.Atoi(strings.TrimSpace(string(capData)))
+			status := strings.TrimSpace(string(statusData))
+			return BatteryMetrics{
+				Capacity: capacity,
+				Status:   status,
+			}
+		}
+	}
+	return BatteryMetrics{}
 }
 
 type cpuSample struct {
@@ -250,13 +263,28 @@ func getUptime() int64 {
 }
 
 func getCPUTemperature() float64 {
-	data, err := os.ReadFile("/sys/class/thermal/thermal_zone0/temp")
+	// Buscar en todas las zonas térmica hasta encontrar una con temperatura válida
+	base := "/sys/class/thermal/"
+	entries, err := os.ReadDir(base)
 	if err != nil {
 		return 0
 	}
-	value, err := strconv.Atoi(strings.TrimSpace(string(data)))
-	if err != nil {
-		return 0
+
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), "thermal_zone") {
+			continue
+		}
+		data, err := os.ReadFile(base + entry.Name() + "/temp")
+		if err != nil {
+			continue
+		}
+		value, err := strconv.Atoi(strings.TrimSpace(string(data)))
+		if err != nil {
+			continue
+		}
+		if value > 0 {
+			return float64(value) / 1000.0
+		}
 	}
-	return float64(value) / 1000.0
+	return 0
 }
