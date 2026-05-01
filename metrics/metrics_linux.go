@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -14,6 +15,13 @@ import (
 
 // SIOCGIWESSID is the ioctl code to get the ESSID in Linux (Wireless Extensions)
 const SIOCGIWESSID = 0x8B1B
+
+// Cache for battery path to avoid scanning /sys/class/power_supply/ every time
+var (
+	batteryPathCache string
+	batteryPathMu  sync.RWMutex
+	batteryLastFind time.Time
+)
 
 func CollectCPUMetrics() CPUMetrics {
 	return CPUMetrics{
@@ -149,7 +157,27 @@ func getSSIDNative(iface string) string {
 }
 
 func CollectBatteryMetrics() BatteryMetrics {
-	// Buscar cualquier batería disponible (BAT0, BAT1, etc.)
+	batteryPathMu.RLock()
+	cachedPath := batteryPathCache
+	lastFind := batteryLastFind
+	batteryPathMu.RUnlock()
+
+	// Use cache if it's fresh (less than 60 seconds old)
+	if cachedPath != "" && time.Since(lastFind) < 60*time.Second {
+		capData, err1 := os.ReadFile(cachedPath + "/capacity")
+		statusData, err2 := os.ReadFile(cachedPath + "/status")
+		if err1 == nil && err2 == nil {
+			capacity, _ := strconv.Atoi(strings.TrimSpace(string(capData)))
+			status := strings.TrimSpace(string(statusData))
+			return BatteryMetrics{
+				Capacity: capacity,
+				Status:   status,
+			}
+		}
+		// If read failed, path might be stale, fall through to rescan
+	}
+
+	// Scan for battery (expensive operation)
 	base := "/sys/class/power_supply/"
 	entries, err := os.ReadDir(base)
 	if err != nil {
@@ -159,13 +187,21 @@ func CollectBatteryMetrics() BatteryMetrics {
 	for _, entry := range entries {
 		name := entry.Name()
 		if len(name) >= 3 && name[:3] == "BAT" {
-			capData, err1 := os.ReadFile(base + name + "/capacity")
-			statusData, err2 := os.ReadFile(base + name + "/status")
+			path := base + name
+			capData, err1 := os.ReadFile(path + "/capacity")
+			statusData, err2 := os.ReadFile(path + "/status")
 			if err1 != nil || err2 != nil {
 				continue
 			}
 			capacity, _ := strconv.Atoi(strings.TrimSpace(string(capData)))
 			status := strings.TrimSpace(string(statusData))
+
+			// Update cache
+			batteryPathMu.Lock()
+			batteryPathCache = path
+			batteryLastFind = time.Now()
+			batteryPathMu.Unlock()
+
 			return BatteryMetrics{
 				Capacity: capacity,
 				Status:   status,
@@ -206,6 +242,7 @@ func getCPUUsage() float64 {
 	if err != nil {
 		return 0
 	}
+	// Use non-blocking approach: read again after a short delay
 	time.Sleep(200 * time.Millisecond)
 	s2, err := readCPUSample()
 	if err != nil {
@@ -217,7 +254,15 @@ func getCPUUsage() float64 {
 	if deltaTotal == 0 {
 		return 0
 	}
-	return float64(deltaTotal-deltaIdle) / float64(deltaTotal) * 100
+	usage := float64(deltaTotal-deltaIdle) / float64(deltaTotal) * 100
+	// Clamp to reasonable bounds (0-100)
+	if usage < 0 {
+		return 0
+	}
+	if usage > 100 {
+		return 100
+	}
+	return usage
 }
 
 func getMemoryUsage() (usedMB int, totalMB int) {
