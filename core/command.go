@@ -210,17 +210,27 @@ func (r *Response) CRCValid() bool {
 // Equivalent to the crc16() from the npm package 'crc'
 // ─────────────────────────────────────────────
 
-func crc16(data []byte) uint16 {
-	var crc uint16 = 0x0000
-	for _, b := range data {
-		crc ^= uint16(b)
-		for i := 0; i < 8; i++ {
+// crc16Table is a pre-computed lookup table for CRC-16/IBM (reflected)
+var crc16Table = func() []uint16 {
+	table := make([]uint16, 256)
+	for i := range table {
+		crc := uint16(i)
+		for j := 0; j < 8; j++ {
 			if crc&0x0001 != 0 {
 				crc = (crc >> 1) ^ 0xA001
 			} else {
 				crc >>= 1
 			}
 		}
+		table[i] = crc
+	}
+	return table
+}()
+
+func crc16(data []byte) uint16 {
+	var crc uint16 = 0x0000
+	for _, b := range data {
+		crc = (crc >> 8) ^ crc16Table[(crc^uint16(b))&0xFF]
 	}
 	return crc
 }
