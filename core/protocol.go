@@ -24,22 +24,30 @@ func ReadResponse(p *SerialPort, timeout time.Duration) (*Response, error) {
 
 	for {
 		if time.Now().After(deadline) {
+			// Clear buffer on timeout to prevent unbounded growth
+			p.buf = p.buf[:0]
 			return nil, ErrTimeout
 		}
 
 		n, err := p.Read(tmp)
 		if err != nil {
+			p.buf = p.buf[:0]
 			return nil, err
 		}
 
 		if n > 0 {
+			// Prevent buffer from growing beyond 16KB (reasonable for serial frames)
+			if len(p.buf)+n > 16384 {
+				p.buf = discardUntilStartFlag(p.buf)
+			}
 			p.buf = append(p.buf, tmp[:n]...)
 		}
 
 		resp, consumed, err := tryParseFrame(p.buf)
 		if err == errNeedMore {
-			if len(p.buf) > 8192 {
-				p.buf = discardUntilStartFlag(p.buf[1:])
+			const maxBufSize = 16384
+			if len(p.buf) > maxBufSize {
+				p.buf = discardUntilStartFlag(p.buf)
 			}
 			if n == 0 {
 				time.Sleep(10 * time.Millisecond)
@@ -48,7 +56,7 @@ func ReadResponse(p *SerialPort, timeout time.Duration) (*Response, error) {
 		}
 
 		if err != nil {
-			p.buf = discardUntilStartFlag(p.buf[1:])
+			p.buf = discardUntilStartFlag(p.buf)
 			continue
 		}
 
