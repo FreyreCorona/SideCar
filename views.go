@@ -74,9 +74,9 @@ func CPUAndMemoryView() RenderFrame {
 func NetworkView() RenderFrame {
 	net := metrics.CollectNetworkMetrics()
 
-	wifiIcon := "🌐"
+	wifiIcon := "[=]" // ASCII icon for wired connection
 	if net.WifiSSID != "" {
-		wifiIcon = "📶"
+		wifiIcon = "[~]" // ASCII icon for WiFi
 	}
 
 	return RenderFrame{

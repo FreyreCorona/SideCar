@@ -434,7 +434,14 @@ convertBtn.addEventListener('click', async () => {
   try {
     const buf    = await state.selectedFile.arrayBuffer();
     const bytes  = new Uint8Array(buf);
-    const b64    = btoa(String.fromCharCode(...bytes));
+    // Convert Uint8Array to base64 safely (handles large files)
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize);
+      binary += String.fromCharCode(...chunk);
+    }
+    const b64    = btoa(binary);
 
     const result = await callGo('convertImageToACF', b64, 240, 240);
     if (result && result.error) {
