@@ -39,6 +39,7 @@ type UIState struct {
 	win          wv.WebView
 	uploadProg   func(int)
 	powerMonitor power.Monitor
+	uploading    atomic.Bool
 }
 
 var uiState UIState
@@ -219,12 +220,17 @@ func runUI(logOut io.Writer) error {
 			data[i] = byte(b)
 		}
 
-		est := 60 * time.Second
-		if mb := len(data) / (1024 * 1024); mb > 2 {
-			est = time.Duration(mb) * 30 * time.Second
+		// ~150ms per KB at 115200 baud with protocol overhead, minimum 2 min
+		est := time.Duration(len(data)/1024) * 150 * time.Millisecond
+		if est < 2*time.Minute {
+			est = 2 * time.Minute
 		}
+
 		ctx, cancel := context.WithTimeout(context.Background(), est)
 		defer cancel()
+
+		uiState.uploading.Store(true)
+		defer uiState.uploading.Store(false)
 
 		ft := core.FileType(fileType)
 		cfg := core.UploadConfig{
@@ -336,7 +342,15 @@ func runUIMetricsLoop(ctx context.Context, dev *core.Device, w wv.WebView, logOu
 			return
 
 		case <-ticker.C:
+			if uiState.uploading.Load() {
+				continue
+			}
+
 			if err := syncCycle(dev, &DaemonConfig{Interval: 5 * time.Second, Log: logOut}); err != nil {
+				if uiState.uploading.Load() {
+					continue
+				}
+
 				log.Println("runUIMetricsLoop: syncCycle error — device disconnected:", err)
 
 				uiState.dev.Store(nil)
@@ -346,7 +360,6 @@ func runUIMetricsLoop(ctx context.Context, dev *core.Device, w wv.WebView, logOu
 					uiState.daemonCancel = nil
 				}
 
-				// Clear dev reference to prevent double-close in RunDaemon's defer
 				dev = nil
 				return
 			}
