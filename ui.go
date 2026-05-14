@@ -272,6 +272,11 @@ func runUI(logOut io.Writer) error {
 		// First, use the generic decoder (handles PNG, JPEG, static GIF).
 		img, format, err := image.Decode(bytes.NewReader(raw))
 		if err != nil {
+			prefix := raw
+			if len(prefix) > 32 {
+				prefix = prefix[:32]
+			}
+			log.Printf("convertImageToACF: decode error, len=%d head=%x", len(raw), prefix)
 			return map[string]interface{}{"error": "image decode: " + err.Error()}
 		}
 		log.Printf("convertImageToACF: format=%s bounds=%v → %dx%d", format, img.Bounds(), targetW, targetH)

@@ -433,16 +433,14 @@ convertBtn.addEventListener('click', async () => {
   appendLog('Converting image to RGB565 (ACF)…');
 
   try {
-    const buf    = await state.selectedFile.arrayBuffer();
-    const bytes  = new Uint8Array(buf);
-    // Convert Uint8Array to base64 safely (handles large files)
-    let binary = '';
-    const chunkSize = 8192;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      const chunk = bytes.subarray(i, i + chunkSize);
-      binary += String.fromCharCode(...chunk);
-    }
-    const b64    = btoa(binary);
+    // Use FileReader.readAsDataURL for reliable base64 from the browser,
+    // avoiding manual byte→string→btoa which can corrupt binary data.
+    const b64 = await new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload  = () => { const s = fr.result; resolve(s.substring(s.indexOf(',') + 1)); };
+      fr.onerror = () => reject(fr.error);
+      fr.readAsDataURL(state.selectedFile);
+    });
 
     const result = await callGo('convertImageToACF', b64, 240, 240);
     if (result && result.error) {
