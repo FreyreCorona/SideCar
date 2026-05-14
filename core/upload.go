@@ -272,7 +272,8 @@ func (d *Device) waitForDownloadReady(ctx context.Context) error {
 
 // sendChunk sends a data chunk and handles the "processing" pattern.
 func (d *Device) sendChunk(ctx context.Context, offset uint32, chunk []byte, timeout time.Duration) error {
-	content := make([]byte, 4+len(chunk))
+	padding := (4 - len(chunk)&3) & 3
+	content := make([]byte, 4+len(chunk)+padding)
 	binary.BigEndian.PutUint32(content[0:4], offset)
 	copy(content[4:], chunk)
 
