@@ -356,7 +356,8 @@ const progressFill  = document.getElementById('progressFill');
 const progressPct   = document.getElementById('progressPct');
 const uploadLog     = document.getElementById('uploadLog');
 
-const IMAGE_EXTS = ['png', 'jpg', 'jpeg'];
+const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif'];
+const GIF_EXTS   = ['gif'];
 
 uploadZone.addEventListener('click', () => fileInput.click());
 uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
@@ -386,8 +387,8 @@ function selectFile(file) {
     convertBtn.disabled      = false;
     uploadBtn.disabled       = true;   // must convert first
     showImagePreview(file);
-    // Auto-select texture type for images.
-    document.getElementById('fileTypeSelect').value = 'texture';
+    // Auto-select texture type based on file extension.
+    document.getElementById('fileTypeSelect').value = GIF_EXTS.includes(ext) ? 'texture_gif' : 'texture';
     appendLog(`Image selected: ${file.name} (${fmtFileSize(file.size)})`, 'ok');
   } else {
     convertBtn.style.display = 'none';
