@@ -66,7 +66,11 @@ func (d *Device) sendWithRetry(cmd *Command, expect CommandType, timeout time.Du
 		if !errors.Is(err, ErrTimeout) {
 			return nil, fmt.Errorf("sendWithRetry %s: %w", cmd.Type, err)
 		}
-		fmt.Fprintf(d.log, "  timeout on %s (attempt %d/%d)\n", cmd.Type, attempt+1, maxRetries)
+		if maxRetries == 0 {
+			fmt.Fprintf(d.log, "  timeout on %s (attempt %d)\n", cmd.Type, attempt+1)
+		} else {
+			fmt.Fprintf(d.log, "  timeout on %s (attempt %d/%d)\n", cmd.Type, attempt+1, maxRetries+1)
+		}
 	}
 	return nil, fmt.Errorf("sendWithRetry %s: %w", cmd.Type, lastErr)
 }
