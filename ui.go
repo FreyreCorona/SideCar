@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
+	"image/color"
 	"image/draw"
+	"image/gif"
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
@@ -232,8 +234,9 @@ func runUI(logOut io.Writer) error {
 		return map[string]interface{}{"ok": true}
 	})
 
-	// convertImageToACF: converts an image (base64) to RGB565 raw for the mini screen.
-	// The display is 240×240. Returns the bytes as []int
+	// convertImageToACF: converts an image (base64) to RGB565 ACF for the mini screen.
+	// Supports PNG, JPEG, and GIF (including animated). Display is 240×240.
+	// Animated GIF frames are composited with proper disposal and concatenated.
 	w.Bind("convertImageToACF", func(b64data string, targetW int, targetH int) map[string]interface{} {
 		if targetW <= 0 {
 			targetW = 240
@@ -247,63 +250,22 @@ func runUI(logOut io.Writer) error {
 			return map[string]interface{}{"error": "base64 decode: " + err.Error()}
 		}
 
-		img, format, err := image.Decode(bytes.NewReader(raw))
+		reader := bytes.NewReader(raw)
+
+		// Try animated GIF first
+		if gifData, gifErr := gif.DecodeAll(reader); gifErr == nil {
+			return convertGIFToACF(gifData, targetW, targetH)
+		}
+
+		// Fall back to single image decode
+		reader.Seek(0, io.SeekStart)
+		img, format, err := image.Decode(reader)
 		if err != nil {
 			return map[string]interface{}{"error": "image decode: " + err.Error()}
 		}
 		log.Printf("convertImageToACF: format=%s bounds=%v → %dx%d", format, img.Bounds(), targetW, targetH)
 
-		bounds := img.Bounds()
-		srcW := bounds.Max.X - bounds.Min.X
-		srcH := bounds.Max.Y - bounds.Min.Y
-
-		// Scale with nearest-neighbor if necessary.
-		var rgba *image.RGBA
-		if srcW != targetW || srcH != targetH {
-			dst := image.NewRGBA(image.Rect(0, 0, targetW, targetH))
-			for y := 0; y < targetH; y++ {
-				for x := 0; x < targetW; x++ {
-					srcX := bounds.Min.X + x*srcW/targetW
-					srcY := bounds.Min.Y + y*srcH/targetH
-					dst.Set(x, y, img.At(srcX, srcY))
-				}
-			}
-			rgba = dst
-		} else {
-			rgba = image.NewRGBA(bounds)
-			draw.Draw(rgba, bounds, img, bounds.Min, draw.Src)
-		}
-
-		// Convert to RGB565 big-endian: RRRRR GGGGGG BBBBB
-		pixelCount := targetW * targetH
-		rawImg := make([]byte, pixelCount*2)
-		for y := 0; y < targetH; y++ {
-			for x := 0; x < targetW; x++ {
-				c := rgba.RGBAAt(x, y)
-				r5 := uint16(c.R) >> 3
-				g6 := uint16(c.G) >> 2
-				b5 := uint16(c.B) >> 3
-				rgb565 := (r5 << 11) | (g6 << 5) | b5
-				idx := (y*targetW + x) * 2
-				rawImg[idx] = byte(rgb565 >> 8)
-				rawImg[idx+1] = byte(rgb565)
-			}
-		}
-
-		// ACF format: [4 bytes LE size][2 bytes width LE][2 bytes height LE][raw RGB565 data]
-		// This matches the format expected by the Minitela texture loader
-		acf := make([]byte, 8+len(rawImg))
-		imgSize := uint32(len(rawImg))
-		acf[0] = byte(imgSize)
-		acf[1] = byte(imgSize >> 8)
-		acf[2] = byte(imgSize >> 16)
-		acf[3] = byte(imgSize >> 24)
-		acf[4] = byte(targetW)
-		acf[5] = byte(targetW >> 8)
-		acf[6] = byte(targetH)
-		acf[7] = byte(targetH >> 8)
-		copy(acf[8:], rawImg)
-
+		acf := rgbaToACF(scaleToRGBA(img, targetW, targetH), targetW, targetH)
 		result := make([]int, len(acf))
 		for i, b := range acf {
 			result[i] = int(b)
@@ -314,6 +276,7 @@ func runUI(logOut io.Writer) error {
 			"width":  targetW,
 			"height": targetH,
 			"size":   len(acf),
+			"frames": 1,
 		}
 	})
 	w.Bind("listPorts", func() []string {
@@ -380,6 +343,138 @@ func runUIMetricsLoop(ctx context.Context, dev *core.Device, w wv.WebView, logOu
 				dev = nil
 				return
 			}
+		}
+	}
+}
+
+// ── Image conversion helpers ─────────────────────────────────────────────
+
+func convertGIFToACF(g *gif.GIF, targetW, targetH int) map[string]interface{} {
+	frameCount := len(g.Image)
+	log.Printf("convertGIFToACF: %d frames, loop=%d, bounds=%v → %dx%d", frameCount, g.LoopCount, g.Config, targetW, targetH)
+
+	width, height := targetW, targetH
+	if width <= 0 {
+		width = g.Config.Width
+	}
+	if height <= 0 {
+		height = g.Config.Height
+	}
+
+	bgColor := color.RGBA{0, 0, 0, 255}
+	if pal, ok := g.Config.ColorModel.(color.Palette); ok && int(g.BackgroundIndex) < len(pal) {
+		if c := color.RGBAModel.Convert(pal[g.BackgroundIndex]); c != nil {
+			bgColor = c.(color.RGBA)
+		}
+	}
+
+	canvas := image.NewRGBA(image.Rect(0, 0, width, height))
+	fillRGBA(canvas, bgColor)
+
+	var acf []byte
+	frameDelays := make([]int, frameCount)
+
+	for i, src := range g.Image {
+		bounds := src.Bounds()
+
+		draw.Draw(canvas, bounds, src, bounds.Min, draw.Over)
+
+		scaled := canvas
+		if width != targetW || height != targetH {
+			scaled = scaleToRGBA(canvas, targetW, targetH)
+		}
+		acf = append(acf, rgbaToACF(scaled, targetW, targetH)...)
+		frameDelays[i] = g.Delay[i]
+
+		if len(g.Disposal) > i {
+			switch g.Disposal[i] {
+			case gif.DisposalBackground, gif.DisposalPrevious:
+				fillRect(canvas, bounds, bgColor)
+			}
+		}
+	}
+
+	result := make([]int, len(acf))
+	for i, b := range acf {
+		result[i] = int(b)
+	}
+
+	return map[string]interface{}{
+		"data":        result,
+		"width":       targetW,
+		"height":      targetH,
+		"size":        len(acf),
+		"frames":      frameCount,
+		"frameDelays": frameDelays,
+		"loopCount":   g.LoopCount,
+	}
+}
+
+func scaleToRGBA(img image.Image, targetW, targetH int) *image.RGBA {
+	bounds := img.Bounds()
+	srcW := bounds.Dx()
+	srcH := bounds.Dy()
+
+	if srcW == targetW && srcH == targetH {
+		rgba := image.NewRGBA(image.Rect(0, 0, targetW, targetH))
+		draw.Draw(rgba, rgba.Bounds(), img, bounds.Min, draw.Src)
+		return rgba
+	}
+
+	dst := image.NewRGBA(image.Rect(0, 0, targetW, targetH))
+	for y := 0; y < targetH; y++ {
+		for x := 0; x < targetW; x++ {
+			sx := bounds.Min.X + x*srcW/targetW
+			sy := bounds.Min.Y + y*srcH/targetH
+			dst.Set(x, y, img.At(sx, sy))
+		}
+	}
+	return dst
+}
+
+func rgbaToACF(img *image.RGBA, targetW, targetH int) []byte {
+	pixelCount := targetW * targetH
+	rawImg := make([]byte, pixelCount*2)
+	for y := 0; y < targetH; y++ {
+		for x := 0; x < targetW; x++ {
+			c := img.RGBAAt(x, y)
+			r5 := uint16(c.R) >> 3
+			g6 := uint16(c.G) >> 2
+			b5 := uint16(c.B) >> 3
+			rgb565 := (r5 << 11) | (g6 << 5) | b5
+			idx := (y*targetW + x) * 2
+			rawImg[idx] = byte(rgb565 >> 8)
+			rawImg[idx+1] = byte(rgb565)
+		}
+	}
+
+	acf := make([]byte, 8+len(rawImg))
+	imgSize := uint32(len(rawImg))
+	acf[0] = byte(imgSize)
+	acf[1] = byte(imgSize >> 8)
+	acf[2] = byte(imgSize >> 16)
+	acf[3] = byte(imgSize >> 24)
+	acf[4] = byte(targetW)
+	acf[5] = byte(targetW >> 8)
+	acf[6] = byte(targetH)
+	acf[7] = byte(targetH >> 8)
+	copy(acf[8:], rawImg)
+	return acf
+}
+
+func fillRGBA(img *image.RGBA, c color.Color) {
+	bounds := img.Bounds()
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			img.Set(x, y, c)
+		}
+	}
+}
+
+func fillRect(img *image.RGBA, rect image.Rectangle, c color.Color) {
+	for y := rect.Min.Y; y < rect.Max.Y && y < img.Bounds().Max.Y; y++ {
+		for x := rect.Min.X; x < rect.Max.X && x < img.Bounds().Max.X; x++ {
+			img.Set(x, y, c)
 		}
 	}
 }
