@@ -4,7 +4,12 @@ import (
 	"encoding/binary"
 	"fmt"
 	"strings"
+
+	_ "embed"
 )
+
+//go:embed Texture.acf
+var acfTemplateData []byte
 
 // ACFHeaderSize is the size of the project header in an ACF file.
 const ACFHeaderSize = 0x4000 // 16 KB
@@ -33,14 +38,14 @@ func (m ACFMagic) String() string {
 }
 
 // ACFHeader represents the parsed header of an ACF project file.
-// Reference: pre-built .acf files at positivo/usr/share/minitela/resources/ACF/
+// Reference: pre-built .acf files and core/acf.go analysis.
 //
-// Layout (16 KB header at offset 0):
+// Layout (16 KB header at offset 0, little-endian multi-byte fields):
 //
 //	0x0000: [2]byte  magic           0x0080 (texture) or 0x0000 (config)
-//	0x0002: uint16   count           big-endian, number of resources (?)
-//	0x0004: uint32   checksum        4 bytes, purpose unknown
-//	0x0008: uint32   compressedSize  big-endian, size of compressed project data
+//	0x0002: uint16   count           little-endian, number of 64KB resource blocks
+//	0x0004: uint32   checksum        XOR of all 32-bit LE words except this field and the last word (FooterMagic)
+//	0x0008: uint32   unknown         purpose unknown (not a simple payload size)
 //	0x000C: [24]byte projectID       ASCII hex string e.g. "67004c7703ad6966e4fe0d13"
 //	0x0024: [44]byte _padding
 //	0x0050: [32]byte versionA        e.g. "1.10.19_build_2024.09.20_GIFTest"
@@ -50,26 +55,29 @@ func (m ACFMagic) String() string {
 //	0x00D0: [12]byte tagCPU0DeviceID "CPU0DEVICEID\0"
 //	0x00FC: uint16   deviceIDLen     length of device ID data
 //	0x0100: [8]byte  deviceID        8 bytes of device identifier
-//	0x0108: uint16   screenWidth     typically 0xF000 = 240 (scaled?)
-//	0x010A: uint16   screenHeight    typically 0xF000 = 240
+//	0x0108: uint16   screenWidth     typically 0xF0 = 240 (LE, but stored shifted?)
+//	0x010A: uint16   screenHeight    typically 0xF0 = 240
 //	0x010C: [16]byte _unknown
 //	0x011C: [36]byte deviceInfo      e.g. "IDE001.4HWX0104.00EM0304.01NOR256D36"
 //	0x0140: [...]    _zeros          rest of 16KB header is zero-filled
 //
-// After the header, the compressed/encoded project data starts at offset 0x4000.
-// Resource blocks (64 KB each) may follow the project data.
+// After the header, the file layout is:
+//
+//	[header (16KB)]
+//	[count × 64KB resource blocks]
+//	[project data (variable, ~49KB for textures)]
 type ACFHeader struct {
-	Magic          ACFMagic
-	Count          uint16
-	Checksum       uint32
-	CompressedSize uint32
-	ProjectID      [24]byte
-	VersionA       [32]byte
-	VersionB       [32]byte
-	CPU0Version    string
-	DeviceInfo     string
-	ScreenWidth    uint16
-	ScreenHeight   uint16
+	Magic        ACFMagic
+	Count        uint16
+	Checksum     uint32
+	Unknown      uint32 // purpose unclear (not totalPayload as previously thought)
+	ProjectID    [24]byte
+	VersionA     [32]byte
+	VersionB     [32]byte
+	CPU0Version  string
+	DeviceInfo   string
+	ScreenWidth  uint16
+	ScreenHeight uint16
 }
 
 // ParseACFHeader parses an ACF header from the first 16 KB of data.
@@ -79,12 +87,12 @@ func ParseACFHeader(data []byte) (*ACFHeader, error) {
 	}
 
 	h := &ACFHeader{
-		Magic:          ACFMagic(binary.BigEndian.Uint16(data[0:2])),
-		Count:          binary.BigEndian.Uint16(data[2:4]),
-		Checksum:       binary.BigEndian.Uint32(data[4:8]),
-		CompressedSize: binary.BigEndian.Uint32(data[8:12]),
-		ScreenWidth:    binary.BigEndian.Uint16(data[0x108:0x10A]),
-		ScreenHeight:   binary.BigEndian.Uint16(data[0x10A:0x10C]),
+		Magic:       ACFMagic(binary.LittleEndian.Uint16(data[0:2])),
+		Count:       binary.LittleEndian.Uint16(data[2:4]),
+		Checksum:    binary.LittleEndian.Uint32(data[4:8]),
+		Unknown:     binary.LittleEndian.Uint32(data[8:12]),
+		ScreenWidth: binary.LittleEndian.Uint16(data[0x108:0x10A]),
+		ScreenHeight: binary.LittleEndian.Uint16(data[0x10A:0x10C]),
 	}
 	copy(h.ProjectID[:], data[0x0C:0x24])
 	copy(h.VersionA[:], data[0x50:0x70])
@@ -100,7 +108,7 @@ func ParseACFHeader(data []byte) (*ACFHeader, error) {
 func (h *ACFHeader) String() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "ACF magic=%s count=%d checksum=0x%08X\n", h.Magic, h.Count, h.Checksum)
-	fmt.Fprintf(&b, "  compressedSize=%d (0x%X)\n", h.CompressedSize, h.CompressedSize)
+	fmt.Fprintf(&b, "  unknown=0x%08X\n", h.Unknown)
 	fmt.Fprintf(&b, "  projectID=%s\n", nullTrim(h.ProjectID[:]))
 	fmt.Fprintf(&b, "  versionA=%s\n", nullTrim(h.VersionA[:]))
 	fmt.Fprintf(&b, "  versionB=%s\n", nullTrim(h.VersionB[:]))
@@ -110,15 +118,86 @@ func (h *ACFHeader) String() string {
 	return b.String()
 }
 
-// ProjectDataOffset returns the offset where the compressed project data begins.
-func (h *ACFHeader) ProjectDataOffset() int {
-	return ACFHeaderSize
+// ProjectDataOffset returns the offset where the project data begins
+// (after the header and all resource blocks).
+func (h *ACFHeader) ProjectDataOffset() int64 {
+	return int64(ACFHeaderSize) + int64(h.Count)*ResourceBlockSize
 }
 
-// TotalSize estimates the total file size given the number of resource blocks.
-// fileSize = headerSize + projectData + resourceBlocks * ResourceBlockSize
-func (h *ACFHeader) TotalSize(numBlocks int) int64 {
-	return int64(ACFHeaderSize) + int64(h.CompressedSize) + int64(numBlocks)*ResourceBlockSize
+// ImageDataOffset returns the file offset where the main image pixel data begins.
+// In the ACF template, the image spans from block 10, offset 0x37B0 through
+// block 11. The first 115200 bytes are 240×240 RGB565 LE pixel data.
+const ImageDataOffset = 0x4000 + 10*ResourceBlockSize + 0x37B0
+
+// ImageDataSize is the size of the raw RGB565 pixel data for a 240×240 image.
+const ImageDataSize = 240 * 240 * 2 // 115200
+
+// FooterMagic is the 4-byte magic value at the end of every ACF file.
+const FooterMagic = 0xA55A5AA5
+
+// FooterSize is the size of the ACF footer: [24 zero bytes][4B word][4B magic].
+const FooterSize = 32
+
+// ComputeChecksum computes the ACF checksum from completed file data.
+//
+// The algorithm is:
+//  1. Zero the checksum field at bytes 4-7.
+//  2. XOR all 32-bit little-endian words in the file EXCEPT:
+//     a) The checksum field itself (bytes 4-7, already zeroed)
+//     b) The very last word (always FooterMagic 0xA55A5AA5)
+//  3. The resulting 32-bit value is the checksum.
+//
+// When the correct checksum is placed at bytes 4-7, the XOR of all 32-bit
+// words in the file equals FooterMagic.
+func ComputeChecksum(data []byte) uint32 {
+	if len(data) < 8 {
+		return 0
+	}
+	var xorSum uint32
+	n := len(data)
+	// Iterate over each 4-byte word, skipping the checksum field (offset 4)
+	// and the last word (the FooterMagic marker at n-4).
+	for i := 0; i+4 <= n; i += 4 {
+		if i == 4 {
+			// Skip the checksum field itself.
+			continue
+		}
+		if i == n-4 {
+			// Skip the last word (FooterMagic).
+			continue
+		}
+		xorSum ^= binary.LittleEndian.Uint32(data[i : i+4])
+	}
+	return xorSum
+}
+
+// SetChecksum computes and sets the checksum at bytes 4-7 in-place.
+func SetChecksum(data []byte) {
+	// Zero the checksum field before computing.
+	binary.LittleEndian.PutUint32(data[4:8], 0)
+	cksum := ComputeChecksum(data)
+	binary.LittleEndian.PutUint32(data[4:8], cksum)
+}
+
+// BuildACF creates a complete ACF project file from raw RGB565 pixel data
+// (240×240, little-endian). It uses the embedded Texture.acf as a template
+// and replaces the pixel data in the appropriate resource blocks, then
+// recomputes the checksum.
+func BuildACF(rgb565 []byte) ([]byte, error) {
+	if len(rgb565) != ImageDataSize {
+		return nil, fmt.Errorf("BuildACF: expected %d bytes of RGB565 data (240×240), got %d", ImageDataSize, len(rgb565))
+	}
+
+	acf := make([]byte, len(acfTemplateData))
+	copy(acf, acfTemplateData)
+
+	// Replace pixel data at the image offset.
+	copy(acf[ImageDataOffset:], rgb565)
+
+	// Recompute and set the correct checksum.
+	SetChecksum(acf)
+
+	return acf, nil
 }
 
 // cstring extracts a null-terminated string from a fixed-size byte slice.

@@ -5,6 +5,7 @@ import (
 	"context"
 	"embed"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -220,6 +221,26 @@ func runUI(logOut io.Writer) error {
 			data[i] = byte(b)
 		}
 
+		// When target is texture_gif, the device expects a full ACF project
+		// file (header + resource blocks + project data), not raw RGB565.
+		// If the data starts with an 8-byte rgbaToACF header (size LE + width LE + height LE),
+		// strip it and wrap the raw RGB565 in the ACF project format.
+		if core.FileType(fileType) == core.FileTypeTextureGIF && len(data) >= 8 {
+			imgSize := int(binary.LittleEndian.Uint32(data[0:4]))
+			width := int(binary.LittleEndian.Uint16(data[4:6]))
+			height := int(binary.LittleEndian.Uint16(data[6:8]))
+			if imgSize == width*height*2 && len(data) == 8+imgSize && width == 240 && height == 240 {
+				rgb := data[8:]
+				project, err := core.BuildACF(rgb)
+				if err != nil {
+					log.Printf("uploadFile: BuildACF: %v", err)
+					return map[string]interface{}{"error": "ACF project build failed: " + err.Error()}
+				}
+				log.Printf("uploadFile: wrapped %d bytes of image data in ACF project (%d bytes)", len(rgb), len(project))
+				data = project
+			}
+		}
+
 		// ~150ms per KB at 115200 baud with protocol overhead, minimum 2 min
 		est := time.Duration(len(data)/1024) * 150 * time.Millisecond
 		if est < 2*time.Minute {
@@ -245,10 +266,9 @@ func runUI(logOut io.Writer) error {
 			return map[string]interface{}{"error": err.Error()}
 		}
 
-		// Restore device to normal mode after upload completes.
-		if _, herr := dev.Handshake(); herr != nil {
-			log.Println("upload: post-upload handshake:", herr)
-		}
+		// Device reboots after DownloadComplete — do NOT try to Handshake.
+		// The old post-upload Handshake always failed with "Port has been closed".
+		// The daemon will detect the reconnect and re-establish the session.
 
 		return map[string]interface{}{"ok": true}
 	})
@@ -339,12 +359,10 @@ func runUIMetricsLoop(ctx context.Context, dev *core.Device, w wv.WebView, logOu
 		})
 	}()
 
-	if err := syncDateTime(dev); err != nil {
-		log.Println("runUIMetricsLoop: syncDateTime:", err)
-	}
-
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
+
+	firstSync := true
 
 	for {
 		select {
@@ -354,6 +372,13 @@ func runUIMetricsLoop(ctx context.Context, dev *core.Device, w wv.WebView, logOu
 		case <-ticker.C:
 			if uiState.uploading.Load() {
 				continue
+			}
+
+			if firstSync {
+				firstSync = false
+				if err := syncDateTime(dev); err != nil {
+					log.Println("runUIMetricsLoop: syncDateTime:", err)
+				}
 			}
 
 			if err := syncCycle(dev, &DaemonConfig{Interval: 5 * time.Second, Log: logOut}); err != nil {

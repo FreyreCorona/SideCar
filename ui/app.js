@@ -390,9 +390,8 @@ function selectFile(file) {
     uploadBtn.disabled       = true;   // must convert first
     showImagePreview(file);
     // Auto-select texture type based on file extension.
-    // NOTE: texture_gif (0x08500000) requires a full project ACF and only
-    // accepts data with the proper ACF header + compressed project format.
-    // For user images, texture (0x08100000) works with raw RGB565 pixel data.
+    // texture_gif (0x08500000) now wraps the image in a full ACF project file
+    // automatically when selected manually. Single images use texture by default.
     document.getElementById('fileTypeSelect').value = 'texture';
     appendLog(`Image selected: ${file.name} (${fmtFileSize(file.size)})`, 'ok');
   } else {
@@ -488,20 +487,18 @@ uploadBtn.addEventListener('click', async () => {
 
   try {
     if (state.isImageFile && state.convertedACFFrames && state.convertedACFFrames.length > 1) {
-      // Multi-frame GIF: upload first frame as texture.
-      // texture_gif at 0x08500000 requires a full project ACF with proprietary
-      // compressed data — the file download protocol rejects raw pixel data there.
-      // Uploading the first frame as a regular texture gives a static preview.
+      // Multi-frame GIF: upload first frame.  The dropdown selection is
+      // respected — "Texture GIF" wraps the frame data in a project ACF.
       const frame = state.convertedACFFrames[0];
       const total = state.convertedACFFrames.length;
       setProgress(0);
-      appendLog(`GIF: ${total} frames — uploading first frame as static texture…`, 'warn');
-      const result = await callGo('uploadFile', frame.data, 'texture');
+      appendLog(`GIF: ${total} frames — uploading first frame as [${fileType}]…`, 'warn');
+      const result = await callGo('uploadFile', frame.data, fileType);
       if (result && result.error) {
         appendLog('Upload error: ' + result.error, 'err');
       } else {
         setProgress(100);
-        appendLog('First frame uploaded ✓ (GIF animation requires a full project ACF)', 'ok');
+        appendLog('First frame uploaded ✓ (animated GIF via texture_gif requires per-frame ACF generation)', 'ok');
       }
     } else if (state.isImageFile && state.convertedACF) {
       // Single-frame image.

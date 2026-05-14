@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 	"time"
 )
 
 // Device represents a Minitela connected over serial.
 type Device struct {
+	mu     sync.Mutex
 	serial *SerialPort
 	log    io.Writer
 }
@@ -35,6 +37,17 @@ func (d *Device) Close() error {
 		return nil
 	}
 	return d.serial.Close()
+}
+
+// Lock acquires the device mutex, preventing concurrent access by the daemon
+// and upload paths. Callers must pair with Unlock.
+func (d *Device) Lock() {
+	d.mu.Lock()
+}
+
+// Unlock releases the device mutex.
+func (d *Device) Unlock() {
+	d.mu.Unlock()
 }
 
 // send sends a command and waits for exactly one response of the expected type.
