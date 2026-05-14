@@ -64,7 +64,7 @@ func (d *Device) sendWithRetry(cmd *Command, expect CommandType, timeout time.Du
 			return resp, nil
 		}
 		lastErr = err
-		if !errors.Is(err, ErrTimeout) && !errors.Is(err, ErrUnexpectedType) {
+		if !errors.Is(err, ErrTimeout) {
 			return nil, fmt.Errorf("sendWithRetry %s: %w", cmd.Type, err)
 		}
 		if maxRetries == 0 {

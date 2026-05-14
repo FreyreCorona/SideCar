@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"time"
 )
 
@@ -120,16 +119,24 @@ func discardUntilStartFlag(buf []byte) []byte {
 	return buf[i:]
 }
 
-// ExpectResponse reads a response and validates it is of the expected type.
+// ExpectResponse reads from the port until a frame of the expected type is
+// received, discarding any unexpected frames (e.g. progress/status updates
+// sent by the device during long operations like flash erase).
 func ExpectResponse(p *SerialPort, expected CommandType, timeout time.Duration) (*Response, error) {
-	resp, err := ReadResponse(p, timeout)
-	if err != nil {
-		return nil, err
-	}
+	deadline := time.Now().Add(timeout)
+	for {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return nil, ErrTimeout
+		}
 
-	if resp.Type != expected {
-		return nil, fmt.Errorf("%w: got %s, want %s", ErrUnexpectedType, resp.Type, expected)
-	}
+		resp, err := ReadResponse(p, remaining)
+		if err != nil {
+			return nil, err
+		}
 
-	return resp, nil
+		if resp.Type == expected {
+			return resp, nil
+		}
+	}
 }
