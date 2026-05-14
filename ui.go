@@ -401,7 +401,7 @@ func convertGIFToACF(g *gif.GIF, targetW, targetH int) map[string]interface{} {
 	canvas := image.NewRGBA(image.Rect(0, 0, width, height))
 	fillRGBA(canvas, bgColor)
 
-	var acf []byte
+	var acfFrames [][]byte
 	frameDelays := make([]int, frameCount)
 
 	for i, src := range g.Image {
@@ -413,7 +413,7 @@ func convertGIFToACF(g *gif.GIF, targetW, targetH int) map[string]interface{} {
 		if width != targetW || height != targetH {
 			scaled = scaleToRGBA(canvas, targetW, targetH)
 		}
-		acf = append(acf, rgbaToACF(scaled, targetW, targetH)...)
+		acfFrames = append(acfFrames, rgbaToACF(scaled, targetW, targetH))
 		frameDelays[i] = g.Delay[i]
 
 		if len(g.Disposal) > i {
@@ -424,17 +424,27 @@ func convertGIFToACF(g *gif.GIF, targetW, targetH int) map[string]interface{} {
 		}
 	}
 
-	result := make([]int, len(acf))
-	for i, b := range acf {
-		result[i] = int(b)
+	frames := make([]map[string]interface{}, len(acfFrames))
+	var totalSize int
+	for i, f := range acfFrames {
+		conv := make([]int, len(f))
+		for j, b := range f {
+			conv[j] = int(b)
+		}
+		frames[i] = map[string]interface{}{
+			"data":  conv,
+			"size":  len(f),
+			"delay": g.Delay[i],
+		}
+		totalSize += len(f)
 	}
 
 	return map[string]interface{}{
-		"data":        result,
+		"frames":      frames,
 		"width":       targetW,
 		"height":      targetH,
-		"size":        len(acf),
-		"frames":      frameCount,
+		"size":        totalSize,
+		"frameCount":  frameCount,
 		"frameDelays": frameDelays,
 		"loopCount":   g.LoopCount,
 	}

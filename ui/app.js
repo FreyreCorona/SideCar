@@ -30,15 +30,16 @@ themeToggle.addEventListener('click', () => {
 
 // State 
 const state = {
-  daemonRunning : false,
-  connected     : false,
-  currentView   : 0,
-  totalViews    : 3,
-  devicePage    : 1,
-  selectedFile  : null,
-  isImageFile   : false,
-  convertedACF  : null,  // []int after conversion
-  brightness    : 100,
+  daemonRunning     : false,
+  connected         : false,
+  currentView       : 0,
+  totalViews        : 3,
+  devicePage        : 1,
+  selectedFile      : null,
+  isImageFile       : false,
+  convertedACF      : null,    // []int after single-frame conversion
+  convertedACFFrames: null,    // [{data:[]int, size, delay}] after multi-frame GIF conversion
+  brightness        : 100,
 };
 
 // DOM refs 
@@ -373,8 +374,9 @@ fileInput.addEventListener('change', () => {
 });
 
 function selectFile(file) {
-  state.selectedFile  = file;
-  state.convertedACF  = null;
+  state.selectedFile       = file;
+  state.convertedACF       = null;
+  state.convertedACFFrames = null;
   const ext = file.name.split('.').pop().toLowerCase();
   state.isImageFile   = IMAGE_EXTS.includes(ext);
 
@@ -445,9 +447,17 @@ convertBtn.addEventListener('click', async () => {
     const result = await callGo('convertImageToACF', b64, 240, 240);
     if (result && result.error) {
       appendLog('Conversion error: ' + result.error, 'err');
+    } else if (result.frameCount > 1) {
+      state.convertedACF       = null;
+      state.convertedACFFrames = result.frames;
+      uploadBtn.disabled       = false;
+      appendLog(`Converted: ${result.width}×${result.height}, ${result.frameCount} frames (${fmtFileSize(result.size)})`, 'ok');
+      imgStatus.className   = 'img-status ok';
+      imgStatus.textContent = `✓ ${result.frameCount} frames converted — ready to upload`;
     } else {
-      state.convertedACF  = result.data;
-      uploadBtn.disabled  = false;
+      state.convertedACF       = result.data;
+      state.convertedACFFrames = null;
+      uploadBtn.disabled       = false;
       appendLog(`Converted: ${result.width}×${result.height} → ${fmtFileSize(result.size)}`, 'ok');
       imgStatus.className   = 'img-status ok';
       imgStatus.textContent = `✓ Converted — ${fmtFileSize(result.size)} ready`;
@@ -474,24 +484,44 @@ uploadBtn.addEventListener('click', async () => {
   setProgress(0);
 
   try {
-    let arr;
-    if (state.isImageFile && state.convertedACF) {
-      // Use the pre-converted ACF data.
+    if (state.isImageFile && state.convertedACFFrames && state.convertedACFFrames.length > 1) {
+      // Multi-frame GIF: upload each frame individually.
+      const frames = state.convertedACFFrames;
+      for (let i = 0; i < frames.length; i++) {
+        const frame = frames[i];
+        setProgress(Math.round((i / frames.length) * 100));
+        appendLog(`Uploading frame ${i + 1}/${frames.length} (${fmtFileSize(frame.size)})…`);
+        const result = await callGo('uploadFile', frame.data, fileType);
+        if (result && result.error) {
+          appendLog(`Frame ${i + 1} error: ${result.error}`, 'err');
+          return;
+        }
+      }
+      setProgress(100);
+      appendLog('All frames uploaded ✓', 'ok');
+    } else if (state.isImageFile && state.convertedACF) {
+      // Single-frame image.
       arr = state.convertedACF;
       appendLog(`Uploading converted ACF as [${fileType}]…`);
+      const result = await callGo('uploadFile', arr, fileType);
+      if (result && result.error) {
+        appendLog('Upload error: ' + result.error, 'err');
+      } else {
+        setProgress(100);
+        appendLog('Upload complete ✓', 'ok');
+      }
     } else {
       // Raw file (already an .acf or .bin).
       const buf = await state.selectedFile.arrayBuffer();
       arr = Array.from(new Uint8Array(buf));
       appendLog(`Uploading ${state.selectedFile.name} as [${fileType}]…`);
-    }
-
-    const result = await callGo('uploadFile', arr, fileType);
-    if (result && result.error) {
-      appendLog('Upload error: ' + result.error, 'err');
-    } else {
-      setProgress(100);
-      appendLog('Upload complete ✓', 'ok');
+      const result = await callGo('uploadFile', arr, fileType);
+      if (result && result.error) {
+        appendLog('Upload error: ' + result.error, 'err');
+      } else {
+        setProgress(100);
+        appendLog('Upload complete ✓', 'ok');
+      }
     }
   } catch (e) {
     appendLog('Upload failed: ' + e, 'err');
