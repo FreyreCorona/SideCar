@@ -219,6 +219,13 @@ func runUI(logOut io.Writer) error {
 			data[i] = byte(b)
 		}
 
+		est := 60 * time.Second
+		if mb := len(data) / (1024 * 1024); mb > 2 {
+			est = time.Duration(mb) * 30 * time.Second
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), est)
+		defer cancel()
+
 		ft := core.FileType(fileType)
 		cfg := core.UploadConfig{
 			OnProgress: func(p core.UploadProgress) {
@@ -228,7 +235,7 @@ func runUI(logOut io.Writer) error {
 			},
 		}
 
-		if err := dev.UploadFile(data, ft, cfg); err != nil {
+		if err := dev.UploadFile(ctx, data, ft, cfg); err != nil {
 			return map[string]interface{}{"error": err.Error()}
 		}
 		return map[string]interface{}{"ok": true}

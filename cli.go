@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/hex"
 	"flag"
 	"fmt"
@@ -97,7 +98,8 @@ func runCLI(args []string, defaultLog io.Writer) error {
 			},
 		}
 
-		if err := dev.UploadFile(data, core.FileType(*fileType), cfg); err != nil {
+		ctx := context.Background()
+		if err := dev.UploadFile(ctx, data, core.FileType(*fileType), cfg); err != nil {
 			return fmt.Errorf("upload failed: %w", err)
 		}
 

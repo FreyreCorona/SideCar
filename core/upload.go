@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/binary"
 	"errors"
@@ -87,7 +88,9 @@ func (c *UploadConfig) chunkTimeout() time.Duration {
 
 // UploadFile transfers data to the MCU at the address corresponding to fileType.
 // The protocol implemented matches upload-file in electron.js.
-func (d *Device) UploadFile(data []byte, fileType FileType, cfg UploadConfig) error {
+// The context allows cancellation — if the caller cancels mid-upload the device
+// state is left as-is and the serial port is drained.
+func (d *Device) UploadFile(ctx context.Context, data []byte, fileType FileType, cfg UploadConfig) error {
 	addr, ok := fileTypeAddrs[fileType]
 	if !ok {
 		return fmt.Errorf("uploadFile: unknown file type %q", fileType)
@@ -103,11 +106,17 @@ func (d *Device) UploadFile(data []byte, fileType FileType, cfg UploadConfig) er
 	fmt.Fprintf(d.log, "→ UploadFile type=%s addr=0x%08X size=%d\n", fileType, addr, fileSize)
 
 	// ── 1. Handshake ──────────────────────────────────────────────────────────
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("uploadFile: %w", err)
+	}
 	if _, err := d.Handshake(); err != nil {
 		return fmt.Errorf("uploadFile: handshake: %w", err)
 	}
 
 	// ── 2. GetDownloadStatus ──────────────────────────────────────────────────
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("uploadFile: %w", err)
+	}
 	status, err := d.GetDownloadStatus()
 	if err != nil {
 		return fmt.Errorf("uploadFile: getDownloadStatus: %w", err)
@@ -117,22 +126,18 @@ func (d *Device) UploadFile(data []byte, fileType FileType, cfg UploadConfig) er
 
 	switch status.Status {
 	case downloadStatePrep, downloadStateActive:
-		// If the file is the same we can resume from the saved offset
 		if status.FileID == fileID {
 			startOffset = status.Offset
 			fmt.Fprintf(d.log, "  resuming from offset %d\n", startOffset)
 		}
-		// If different, start from 0 (startOffset is already 0)
 
 	case downloadStateAHMI:
 		if status.FileID == fileID {
-			// Already flashed — nothing to do
 			fmt.Fprintln(d.log, "  file already present on the device")
 			d.reportProgress(cfg.OnProgress, int64(fileSize), int64(fileSize))
 			return nil
 		}
-		// Different file: need to switch state before writing
-		if err := d.switchToDownloadMode(); err != nil {
+		if err := d.switchToDownloadMode(ctx); err != nil {
 			return fmt.Errorf("uploadFile: switchState: %w", err)
 		}
 
@@ -141,6 +146,9 @@ func (d *Device) UploadFile(data []byte, fileType FileType, cfg UploadConfig) er
 	}
 
 	// ── 3. RequestDownload ────────────────────────────────────────────────────
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("uploadFile: %w", err)
+	}
 	dlResult, err := d.RequestDownload(addr, fileSize, fileID)
 	if err != nil {
 		return fmt.Errorf("uploadFile: requestDownload: %w", err)
@@ -151,10 +159,9 @@ func (d *Device) UploadFile(data []byte, fileType FileType, cfg UploadConfig) er
 		return fmt.Errorf("uploadFile: device returned maxPageSize=0")
 	}
 
-	// Response 0xFFFFFFFF → device is still preparing; wait for the final response
 	if dlResult.Response == respProcessing {
 		fmt.Fprintln(d.log, "  requestDownload: waiting for final response from device")
-		if err := d.waitForDownloadReady(); err != nil {
+		if err := d.waitForDownloadReady(ctx); err != nil {
 			return fmt.Errorf("uploadFile: requestDownload processing: %w", err)
 		}
 	} else if dlResult.Response != 0 {
@@ -166,19 +173,22 @@ func (d *Device) UploadFile(data []byte, fileType FileType, cfg UploadConfig) er
 	lastReportedPct := -1
 
 	for offset < fileSize {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("uploadFile: %w", err)
+		}
+
 		end := offset + maxPageSize
 		if end > fileSize {
 			end = fileSize
 		}
 		chunk := data[offset:end]
 
-		if err := d.sendChunk(offset, chunk, cfg.chunkTimeout()); err != nil {
+		if err := d.sendChunk(ctx, offset, chunk, cfg.chunkTimeout()); err != nil {
 			return fmt.Errorf("uploadFile: sendChunk offset=%d: %w", offset, err)
 		}
 
 		offset = end
 
-		// Progress: notify only when it changes by ≥5%
 		pct := int(100 * int64(offset) / int64(fileSize))
 		if cfg.OnProgress != nil && pct/5 > lastReportedPct/5 {
 			lastReportedPct = pct
@@ -193,9 +203,7 @@ func (d *Device) UploadFile(data []byte, fileType FileType, cfg UploadConfig) er
 	d.reportProgress(cfg.OnProgress, int64(fileSize), int64(fileSize))
 
 	// ── 5. DownloadComplete ───────────────────────────────────────────────────
-	// Errors are ignored here (same as the JS) because the device sometimes
-	// does not respond to complete but the write was successful
-	if err := d.DownloadComplete(); err != nil {
+	if err := d.DownloadComplete(ctx); err != nil {
 		fmt.Fprintf(d.log, "  DownloadComplete: %v (ignored)\n", err)
 	}
 
@@ -208,10 +216,12 @@ func (d *Device) UploadFile(data []byte, fileType FileType, cfg UploadConfig) er
 // ─────────────────────────────────────────────
 
 // switchToDownloadMode sends SWITCH_STATE with value 0x10 to exit AHMI mode.
-func (d *Device) switchToDownloadMode() error {
+func (d *Device) switchToDownloadMode(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	fmt.Fprintln(d.log, "→ SwitchState → download mode")
 
-	// The JS sends the hex string "10" as content, which is byte 0x10
 	cmd := NewCommand(CmdSwitchState, []byte{0x10})
 	resp, err := d.sendWithRetry(cmd, CmdSwitchStateResp, 1*time.Second, 3)
 	if err != nil {
@@ -229,18 +239,18 @@ func (d *Device) switchToDownloadMode() error {
 }
 
 // waitForDownloadReady waits until a REQUEST_DOWNLOAD_RESPONSE with code 0 is received.
-func (d *Device) waitForDownloadReady() error {
-	deadline := time.Now().Add(60 * time.Second)
-	for time.Now().Before(deadline) {
-		// Use remaining time for each read attempt
-		remaining := time.Until(deadline)
-		if remaining <= 0 {
-			return ErrTimeout
+func (d *Device) waitForDownloadReady(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
 		}
-		resp, err := ReadResponse(d.serial, remaining)
+
+		resp, err := ReadResponse(d.serial, 5*time.Second)
 		if err != nil {
 			if errors.Is(err, ErrTimeout) {
-				return fmt.Errorf("waitForDownloadReady: %w", err)
+				continue
 			}
 			return err
 		}
@@ -258,20 +268,22 @@ func (d *Device) waitForDownloadReady() error {
 			return fmt.Errorf("requestDownload: error code 0x%08X", code)
 		}
 	}
-	return ErrTimeout
 }
 
 // sendChunk sends a data chunk and handles the "processing" pattern.
-func (d *Device) sendChunk(offset uint32, chunk []byte, timeout time.Duration) error {
+func (d *Device) sendChunk(ctx context.Context, offset uint32, chunk []byte, timeout time.Duration) error {
 	content := make([]byte, 4+len(chunk))
 	binary.BigEndian.PutUint32(content[0:4], offset)
 	copy(content[4:], chunk)
 
 	cmd := NewCommand(CmdDownloadData, content)
 
-	// Retry the chunk on timeout
 	var lastErr error
 	for attempt := 0; attempt < 3; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
 		if err := d.serial.Write(cmd.Frame()); err != nil {
 			return err
 		}
@@ -293,15 +305,14 @@ func (d *Device) sendChunk(offset uint32, chunk []byte, timeout time.Duration) e
 		code := binary.BigEndian.Uint32(resp.Content[0:4])
 		switch code {
 		case 0:
-			return nil // success
+			return nil
 		case respProcessing:
-			if err := d.waitForChunkDone(timeout); err != nil {
+			if err := d.waitForChunkDone(ctx, timeout); err != nil {
 				lastErr = err
 				continue
 			}
 			return nil
 		default:
-			// Other codes → retry the chunk
 			lastErr = fmt.Errorf("DownloadData: code 0x%08X", code)
 			continue
 		}
@@ -311,9 +322,19 @@ func (d *Device) sendChunk(offset uint32, chunk []byte, timeout time.Duration) e
 }
 
 // waitForChunkDone waits for the device to confirm it processed the chunk.
-func (d *Device) waitForChunkDone(timeout time.Duration) error {
+func (d *Device) waitForChunkDone(ctx context.Context, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		if time.Now().After(deadline) {
+			return ErrTimeout
+		}
+
 		resp, err := ReadResponse(d.serial, time.Until(deadline))
 		if err != nil {
 			return err
@@ -351,7 +372,7 @@ func (d *Device) reportProgress(fn func(UploadProgress), sent, total int64) {
 
 // DownloadComplete notifies the device that the transfer is complete.
 // Overrides the simple version in device.go with support for the "processing" pattern.
-func (d *Device) DownloadComplete() error {
+func (d *Device) DownloadComplete(ctx context.Context) error {
 	fmt.Fprintln(d.log, "→ DownloadComplete")
 
 	cmd := NewCommand(CmdDownloadComplete, nil)
@@ -376,11 +397,18 @@ func (d *Device) DownloadComplete() error {
 		return fmt.Errorf("DownloadComplete: error 0x%08X", code)
 	}
 
-	// Wait for the final response
-	deadline := time.Now().Add(5 * time.Second)
 	for {
-		resp, err := ReadResponse(d.serial, time.Until(deadline))
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		resp, err := ReadResponse(d.serial, 1*time.Second)
 		if err != nil {
+			if errors.Is(err, ErrTimeout) {
+				continue
+			}
 			return err
 		}
 		if resp.Type != CmdDownloadCompleteResp {
