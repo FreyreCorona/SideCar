@@ -43,6 +43,7 @@ func (d *Device) send(cmd *Command, expect CommandType, timeout time.Duration) (
 	if err := d.serial.Write(cmd.Frame()); err != nil {
 		return nil, fmt.Errorf("send %s: %w", cmd.Type, err)
 	}
+	time.Sleep(200 * time.Millisecond)
 	resp, err := ExpectResponse(d.serial, expect, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("send %s → %s: %w", cmd.Type, expect, err)
@@ -59,6 +60,7 @@ func (d *Device) sendWithRetry(cmd *Command, expect CommandType, timeout time.Du
 		if err := d.serial.Write(cmd.Frame()); err != nil {
 			return nil, fmt.Errorf("sendWithRetry write %s: %w", cmd.Type, err)
 		}
+		time.Sleep(200 * time.Millisecond)
 		resp, err := ExpectResponse(d.serial, expect, timeout)
 		if err == nil {
 			return resp, nil
