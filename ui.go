@@ -244,6 +244,12 @@ func runUI(logOut io.Writer) error {
 		if err := dev.UploadFile(ctx, data, ft, cfg); err != nil {
 			return map[string]interface{}{"error": err.Error()}
 		}
+
+		// Restore device to normal mode after upload completes.
+		if _, herr := dev.Handshake(); herr != nil {
+			log.Println("upload: post-upload handshake:", herr)
+		}
+
 		return map[string]interface{}{"ok": true}
 	})
 
@@ -263,20 +269,19 @@ func runUI(logOut io.Writer) error {
 			return map[string]interface{}{"error": "base64 decode: " + err.Error()}
 		}
 
-		reader := bytes.NewReader(raw)
-
-		// Try animated GIF first
-		if gifData, gifErr := gif.DecodeAll(reader); gifErr == nil {
-			return convertGIFToACF(gifData, targetW, targetH)
-		}
-
-		// Fall back to single image decode
-		reader.Seek(0, io.SeekStart)
-		img, format, err := image.Decode(reader)
+		// First, use the generic decoder (handles PNG, JPEG, static GIF).
+		img, format, err := image.Decode(bytes.NewReader(raw))
 		if err != nil {
 			return map[string]interface{}{"error": "image decode: " + err.Error()}
 		}
 		log.Printf("convertImageToACF: format=%s bounds=%v → %dx%d", format, img.Bounds(), targetW, targetH)
+
+		// If it's a GIF, reload with DecodeAll for animation support.
+		if format == "gif" {
+			if gifData, gifErr := gif.DecodeAll(bytes.NewReader(raw)); gifErr == nil && len(gifData.Image) > 1 {
+				return convertGIFToACF(gifData, targetW, targetH)
+			}
+		}
 
 		acf := rgbaToACF(scaleToRGBA(img, targetW, targetH), targetW, targetH)
 		result := make([]int, len(acf))

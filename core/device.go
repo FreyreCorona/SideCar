@@ -50,7 +50,8 @@ func (d *Device) send(cmd *Command, expect CommandType, timeout time.Duration) (
 	return resp, nil
 }
 
-// sendWithRetry sends a command and retries on timeout up to maxRetries times.
+// sendWithRetry sends a command and retries on recoverable errors (timeout
+// and unexpected type due to stale responses) up to maxRetries times.
 func (d *Device) sendWithRetry(cmd *Command, expect CommandType, timeout time.Duration, maxRetries int) (*Response, error) {
 	var lastErr error
 	for attempt := 0; maxRetries == 0 || attempt <= maxRetries; attempt++ {
@@ -63,13 +64,13 @@ func (d *Device) sendWithRetry(cmd *Command, expect CommandType, timeout time.Du
 			return resp, nil
 		}
 		lastErr = err
-		if !errors.Is(err, ErrTimeout) {
+		if !errors.Is(err, ErrTimeout) && !errors.Is(err, ErrUnexpectedType) {
 			return nil, fmt.Errorf("sendWithRetry %s: %w", cmd.Type, err)
 		}
 		if maxRetries == 0 {
-			fmt.Fprintf(d.log, "  timeout on %s (attempt %d)\n", cmd.Type, attempt+1)
+			fmt.Fprintf(d.log, "  retry on %s: %v (attempt %d)\n", cmd.Type, err, attempt+1)
 		} else {
-			fmt.Fprintf(d.log, "  timeout on %s (attempt %d/%d)\n", cmd.Type, attempt+1, maxRetries+1)
+			fmt.Fprintf(d.log, "  retry on %s: %v (attempt %d/%d)\n", cmd.Type, err, attempt+1, maxRetries+1)
 		}
 	}
 	return nil, fmt.Errorf("sendWithRetry %s: %w", cmd.Type, lastErr)
