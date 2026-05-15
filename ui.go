@@ -221,11 +221,12 @@ func runUI(logOut io.Writer) error {
 			data[i] = byte(b)
 		}
 
-		// When target is texture_gif, the device expects a full ACF project
-		// file (header + resource blocks + project data), not raw RGB565.
+		// When target is texture or texture_gif, the device expects a full ACF
+		// project file (header + resource blocks + project data), not raw RGB565.
 		// If the data starts with an 8-byte rgbaToACF header (size LE + width LE + height LE),
 		// strip it and wrap the raw RGB565 in the ACF project format.
-		if core.FileType(fileType) == core.FileTypeTextureGIF && len(data) >= 8 {
+		ft := core.FileType(fileType)
+		if (ft == core.FileTypeTexture || ft == core.FileTypeTextureGIF) && len(data) >= 8 {
 			imgSize := int(binary.LittleEndian.Uint32(data[0:4]))
 			width := int(binary.LittleEndian.Uint16(data[4:6]))
 			height := int(binary.LittleEndian.Uint16(data[6:8]))
@@ -253,7 +254,6 @@ func runUI(logOut io.Writer) error {
 		uiState.uploading.Store(true)
 		defer uiState.uploading.Store(false)
 
-		ft := core.FileType(fileType)
 		cfg := core.UploadConfig{
 			OnProgress: func(p core.UploadProgress) {
 				if uiState.uploadProg != nil {
