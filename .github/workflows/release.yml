@@ -25,6 +25,28 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate Changelog
+        id: changelog
+        run: |
+          CURRENT_TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          PREVIOUS_TAG=$(git tag --merged HEAD --sort=-version:refname \
+            | grep -v "^${CURRENT_TAG}$" \
+            | head -1)
+
+          echo "## Changelog" > release_body.md
+          echo "" >> release_body.md
+
+          if [ -z "$PREVIOUS_TAG" ]; then
+            echo "Initial release \`$CURRENT_TAG\`" >> release_body.md
+          else
+            echo "Changes since \`$PREVIOUS_TAG\`:" >> release_body.md
+            echo "" >> release_body.md
+            git log --pretty=format:"* %s (%h)" \
+              "$PREVIOUS_TAG..$CURRENT_TAG" --no-merges >> release_body.md
+          fi
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -60,5 +82,6 @@ jobs:
       - name: Upload Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name : ${{ github.event.inputs.tag || github.ref_name}}
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          body_path: release_body.md
           files: dist/*
