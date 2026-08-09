@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/binary"
 	"fmt"
+	"maps"
 	"time"
 )
 
@@ -39,17 +40,12 @@ func (d *Device) WriteNumRegisters(regs []NumRegister) (map[uint16]uint32, error
 
 	result := make(map[uint16]uint32, len(regs))
 	for i := 0; i < len(regs); i += maxRegsPerBatch {
-		end := i + maxRegsPerBatch
-		if end > len(regs) {
-			end = len(regs)
-		}
+		end := min(i+maxRegsPerBatch, len(regs))
 		batch, err := d.writeNumRegsBatch(regs[i:end])
 		if err != nil {
 			return nil, err
 		}
-		for k, v := range batch {
-			result[k] = v
-		}
+		maps.Copy(result, batch)
 	}
 	return result, nil
 }
@@ -87,17 +83,12 @@ func (d *Device) ReadNumRegisters(regIDs []uint16) (map[uint16]uint32, error) {
 
 	result := make(map[uint16]uint32, len(regIDs))
 	for i := 0; i < len(regIDs); i += maxRegsPerBatch {
-		end := i + maxRegsPerBatch
-		if end > len(regIDs) {
-			end = len(regIDs)
-		}
+		end := min(i+maxRegsPerBatch, len(regIDs))
 		batch, err := d.readNumRegsBatch(regIDs[i:end])
 		if err != nil {
 			return nil, err
 		}
-		for k, v := range batch {
-			result[k] = v
-		}
+		maps.Copy(result, batch)
 	}
 	return result, nil
 }
@@ -195,7 +186,7 @@ func parseNumRegResponse(content []byte) (map[uint16]uint32, error) {
 	}
 
 	result := make(map[uint16]uint32, regNum)
-	for i := 0; i < regNum; i++ {
+	for i := range regNum {
 		regID := binary.BigEndian.Uint16(data[i*6:])
 		value := binary.BigEndian.Uint32(data[i*6+2:])
 		result[regID] = value

@@ -138,7 +138,7 @@ func runUI(logOut io.Writer) error {
 			uiState.dev.Store(nil)
 		}
 	})
-	w.Bind("getStats", func() map[string]interface{} {
+	w.Bind("getStats", func() map[string]any {
 		cpu := metrics.CollectCPUMetrics()
 		mem := metrics.CollectMemoryMetrics()
 		bat := metrics.CollectBatteryMetrics()
@@ -150,7 +150,7 @@ func runUI(logOut io.Writer) error {
 			ramPct = 100 * mem.UsedMB / mem.TotalMB
 		}
 
-		return map[string]interface{}{
+		return map[string]any{
 			"cpu":       cpu.UsagePercent,
 			"temp":      cpu.Temperature,
 			"ramUsed":   mem.UsedMB,
@@ -209,11 +209,11 @@ func runUI(logOut io.Writer) error {
 			})
 		}
 	})
-	w.Bind("uploadFile", func(bytesArr []int, fileType string) map[string]interface{} {
+	w.Bind("uploadFile", func(bytesArr []int, fileType string) map[string]any {
 		dev := uiState.dev.Load()
 
 		if dev == nil {
-			return map[string]interface{}{"error": "device not connected"}
+			return map[string]any{"error": "device not connected"}
 		}
 
 		data := make([]byte, len(bytesArr))
@@ -235,7 +235,7 @@ func runUI(logOut io.Writer) error {
 				project, err := core.BuildACF(rgb)
 				if err != nil {
 					log.Printf("uploadFile: BuildACF: %v", err)
-					return map[string]interface{}{"error": "ACF project build failed: " + err.Error()}
+					return map[string]any{"error": "ACF project build failed: " + err.Error()}
 				}
 				log.Printf("uploadFile: wrapped %d bytes of image data in ACF project (%d bytes)", len(rgb), len(project))
 				data = project
@@ -243,10 +243,7 @@ func runUI(logOut io.Writer) error {
 		}
 
 		// ~150ms per KB at 115200 baud with protocol overhead, minimum 2 min
-		est := time.Duration(len(data)/1024) * 150 * time.Millisecond
-		if est < 2*time.Minute {
-			est = 2 * time.Minute
-		}
+		est := max(time.Duration(len(data)/1024)*150*time.Millisecond, 2*time.Minute)
 
 		ctx, cancel := context.WithTimeout(context.Background(), est)
 		defer cancel()
@@ -263,20 +260,20 @@ func runUI(logOut io.Writer) error {
 		}
 
 		if err := dev.UploadFile(ctx, data, ft, cfg); err != nil {
-			return map[string]interface{}{"error": err.Error()}
+			return map[string]any{"error": err.Error()}
 		}
 
 		// Device reboots after DownloadComplete — do NOT try to Handshake.
 		// The old post-upload Handshake always failed with "Port has been closed".
 		// The daemon will detect the reconnect and re-establish the session.
 
-		return map[string]interface{}{"ok": true}
+		return map[string]any{"ok": true}
 	})
 
 	// convertImageToACF: converts an image (base64) to RGB565 ACF for the mini screen.
 	// Supports PNG, JPEG, and GIF (including animated). Display is 240×240.
 	// Animated GIF frames are composited with proper disposal and concatenated.
-	w.Bind("convertImageToACF", func(b64data string, targetW int, targetH int) map[string]interface{} {
+	w.Bind("convertImageToACF", func(b64data string, targetW int, targetH int) map[string]any {
 		if targetW <= 0 {
 			targetW = 240
 		}
@@ -286,7 +283,7 @@ func runUI(logOut io.Writer) error {
 
 		raw, err := base64.StdEncoding.DecodeString(b64data)
 		if err != nil {
-			return map[string]interface{}{"error": "base64 decode: " + err.Error()}
+			return map[string]any{"error": "base64 decode: " + err.Error()}
 		}
 
 		// First, use the generic decoder (handles PNG, JPEG, static GIF).
@@ -297,7 +294,7 @@ func runUI(logOut io.Writer) error {
 				prefix = prefix[:32]
 			}
 			log.Printf("convertImageToACF: decode error, len=%d head=%x", len(raw), prefix)
-			return map[string]interface{}{"error": "image decode: " + err.Error()}
+			return map[string]any{"error": "image decode: " + err.Error()}
 		}
 		log.Printf("convertImageToACF: format=%s bounds=%v → %dx%d", format, img.Bounds(), targetW, targetH)
 
@@ -314,7 +311,7 @@ func runUI(logOut io.Writer) error {
 			result[i] = int(b)
 		}
 
-		return map[string]interface{}{
+		return map[string]any{
 			"data":   result,
 			"width":  targetW,
 			"height": targetH,
@@ -404,7 +401,7 @@ func runUIMetricsLoop(ctx context.Context, dev *core.Device, w wv.WebView, logOu
 
 // ── Image conversion helpers ─────────────────────────────────────────────
 
-func convertGIFToACF(g *gif.GIF, targetW, targetH int) map[string]interface{} {
+func convertGIFToACF(g *gif.GIF, targetW, targetH int) map[string]any {
 	frameCount := len(g.Image)
 	log.Printf("convertGIFToACF: %d frames, loop=%d, bounds=%v → %dx%d", frameCount, g.LoopCount, g.Config, targetW, targetH)
 
@@ -449,14 +446,14 @@ func convertGIFToACF(g *gif.GIF, targetW, targetH int) map[string]interface{} {
 		}
 	}
 
-	frames := make([]map[string]interface{}, len(acfFrames))
+	frames := make([]map[string]any, len(acfFrames))
 	var totalSize int
 	for i, f := range acfFrames {
 		conv := make([]int, len(f))
 		for j, b := range f {
 			conv[j] = int(b)
 		}
-		frames[i] = map[string]interface{}{
+		frames[i] = map[string]any{
 			"data":  conv,
 			"size":  len(f),
 			"delay": g.Delay[i],
@@ -464,7 +461,7 @@ func convertGIFToACF(g *gif.GIF, targetW, targetH int) map[string]interface{} {
 		totalSize += len(f)
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"frames":      frames,
 		"width":       targetW,
 		"height":      targetH,
@@ -487,8 +484,8 @@ func scaleToRGBA(img image.Image, targetW, targetH int) *image.RGBA {
 	}
 
 	dst := image.NewRGBA(image.Rect(0, 0, targetW, targetH))
-	for y := 0; y < targetH; y++ {
-		for x := 0; x < targetW; x++ {
+	for y := range targetH {
+		for x := range targetW {
 			sx := bounds.Min.X + x*srcW/targetW
 			sy := bounds.Min.Y + y*srcH/targetH
 			dst.Set(x, y, img.At(sx, sy))
@@ -500,8 +497,8 @@ func scaleToRGBA(img image.Image, targetW, targetH int) *image.RGBA {
 func rgbaToACF(img *image.RGBA, targetW, targetH int) []byte {
 	pixelCount := targetW * targetH
 	rawImg := make([]byte, pixelCount*2)
-	for y := 0; y < targetH; y++ {
-		for x := 0; x < targetW; x++ {
+	for y := range targetH {
+		for x := range targetW {
 			c := img.RGBAAt(x, y)
 			r5 := uint16(c.R) >> 3
 			g6 := uint16(c.G) >> 2

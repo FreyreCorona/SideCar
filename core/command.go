@@ -215,7 +215,7 @@ var crc16Table = func() []uint16 {
 	table := make([]uint16, 256)
 	for i := range table {
 		crc := uint16(i)
-		for j := 0; j < 8; j++ {
+		for range 8 {
 			if crc&0x0001 != 0 {
 				crc = (crc >> 1) ^ 0xA001
 			} else {

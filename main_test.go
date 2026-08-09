@@ -123,7 +123,7 @@ func TestMemUsagePct_Range(t *testing.T) {
 func TestNextView_CyclesAllThreeViews(t *testing.T) {
 	currentView = 0
 	views := make(map[int]bool)
-	for i := 0; i < 6; i++ {
+	for range 6 {
 		views[currentView] = true
 		nextView()
 	}

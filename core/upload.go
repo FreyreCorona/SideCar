@@ -177,10 +177,7 @@ func (d *Device) UploadFile(ctx context.Context, data []byte, fileType FileType,
 			return fmt.Errorf("uploadFile: %w", err)
 		}
 
-		end := offset + maxPageSize
-		if end > fileSize {
-			end = fileSize
-		}
+		end := min(offset+maxPageSize, fileSize)
 		chunk := data[offset:end]
 
 		if err := d.sendChunk(ctx, offset, chunk, cfg.chunkTimeout()); err != nil {
@@ -280,7 +277,7 @@ func (d *Device) sendChunk(ctx context.Context, offset uint32, chunk []byte, tim
 	cmd := NewCommand(CmdDownloadData, content)
 
 	var lastErr error
-	for attempt := 0; attempt < 3; attempt++ {
+	for range 3 {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
