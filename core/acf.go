@@ -53,10 +53,13 @@ func (m ACFMagic) String() string {
 //	0x0094: [12]byte tagCPU0Version  "CPU0VERSION\0"
 //	0x00B0: [32]byte cpu0Version     version string
 //	0x00D0: [12]byte tagCPU0DeviceID "CPU0DEVICEID\0"
-//	0x00FC: uint16   deviceIDLen     length of device ID data
-//	0x0100: [8]byte  deviceID        8 bytes of device identifier
-//	0x0108: uint16   screenWidth     typically 0xF0 = 240 (LE, but stored shifted?)
-//	0x010A: uint16   screenHeight    typically 0xF0 = 240
+//	0x00FA: uint16   deviceIDLen     length of device ID data (observed 3)
+//	0x00FC: [4]byte  _padding        zero-filled
+//	0x0100: [4]byte  deviceID        device identifier bytes
+//	0x0104: uint16   screenWidth     observed 0x00F0 = 240 (LE)
+//	0x0106: uint16   screenHeight    observed 0x00F0 = 240 (LE)
+//	0x0108: uint16   _unknown        observed 0x0010
+//	0x010A: uint16   _unknown        observed 0x0020
 //	0x010C: [16]byte _unknown
 //	0x011C: [36]byte deviceInfo      e.g. "IDE001.4HWX0104.00EM0304.01NOR256D36"
 //	0x0140: [...]    _zeros          rest of 16KB header is zero-filled
@@ -91,8 +94,8 @@ func ParseACFHeader(data []byte) (*ACFHeader, error) {
 		Count:       binary.LittleEndian.Uint16(data[2:4]),
 		Checksum:    binary.LittleEndian.Uint32(data[4:8]),
 		Unknown:     binary.LittleEndian.Uint32(data[8:12]),
-		ScreenWidth: binary.LittleEndian.Uint16(data[0x108:0x10A]),
-		ScreenHeight: binary.LittleEndian.Uint16(data[0x10A:0x10C]),
+		ScreenWidth:  binary.LittleEndian.Uint16(data[0x104:0x106]),
+		ScreenHeight: binary.LittleEndian.Uint16(data[0x106:0x108]),
 	}
 	copy(h.ProjectID[:], data[0x0C:0x24])
 	copy(h.VersionA[:], data[0x50:0x70])
