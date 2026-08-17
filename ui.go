@@ -106,12 +106,18 @@ func runUI(logOut io.Writer) error {
 			currentView = idx % 3
 		}
 	})
-	w.Bind("startDaemon", func() bool {
+	w.Bind("startDaemon", func(port string) bool {
 		if uiState.daemonCancel != nil {
 			return true
 		}
 
-		dev, err := core.AutoConnect(115200)
+		var dev *core.Device
+		var err error
+		if port != "" && port != "auto" {
+			dev, err = core.Connect(port, 115200)
+		} else {
+			dev, err = core.AutoConnect(115200)
+		}
 		if err != nil {
 			log.Println("startDaemon: connect:", err)
 			return false

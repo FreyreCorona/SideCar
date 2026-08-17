@@ -210,6 +210,20 @@ func (d *Device) SwitchState(payload []byte) error {
 	return err
 }
 
+// Connect opens a specific serial port and verifies it is a Minitela via handshake.
+func Connect(port string, baud int) (*Device, error) {
+	p, err := OpenSerial(port, baud)
+	if err != nil {
+		return nil, err
+	}
+	dev := NewDevice(p)
+	if _, err := dev.Handshake(); err != nil {
+		p.Close()
+		return nil, err
+	}
+	return dev, nil
+}
+
 // AutoConnect probes all available serial ports until it finds a Minitela.
 func AutoConnect(baud int) (*Device, error) {
 	devices, err := FindSerialDevices()
