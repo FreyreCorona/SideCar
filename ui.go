@@ -5,7 +5,6 @@ import (
 	"context"
 	"embed"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -223,15 +222,15 @@ func runUI(logOut io.Writer) error {
 
 		// When target is texture or texture_gif, the device expects a full ACF
 		// project file (header + resource blocks + project data), not raw RGB565.
-		// If the data starts with an 8-byte rgbaToACF header (size LE + width LE + height LE),
-		// strip it and wrap the raw RGB565 in the ACF project format.
+		// Converted images arrive wrapped with an 8-byte header
+		// (size LE + width LE + height LE); strip it and wrap the raw RGB565
+		// in the ACF project format. The display is always 240×240.
 		ft := core.FileType(fileType)
-		if (ft == core.FileTypeTexture || ft == core.FileTypeTextureGIF) && len(data) >= 8 {
-			imgSize := int(binary.LittleEndian.Uint32(data[0:4]))
-			width := int(binary.LittleEndian.Uint16(data[4:6]))
-			height := int(binary.LittleEndian.Uint16(data[6:8]))
-			if imgSize == width*height*2 && len(data) == 8+imgSize && width == 240 && height == 240 {
-				rgb := data[8:]
+		if ft == core.FileTypeTexture || ft == core.FileTypeTextureGIF {
+			if rgb, w, h, err := core.UnwrapRGB565(data); err == nil {
+				if w != core.DisplaySize || h != core.DisplaySize {
+					return map[string]any{"error": fmt.Sprintf("texture image must be %dx%d, got %dx%d", core.DisplaySize, core.DisplaySize, w, h)}
+				}
 				project, err := core.BuildACF(rgb)
 				if err != nil {
 					log.Printf("uploadFile: BuildACF: %v", err)
@@ -271,16 +270,10 @@ func runUI(logOut io.Writer) error {
 	})
 
 	// convertImageToACF: converts an image (base64) to RGB565 ACF for the mini screen.
-	// Supports PNG, JPEG, and GIF (including animated). Display is 240×240.
-	// Animated GIF frames are composited with proper disposal and concatenated.
-	w.Bind("convertImageToACF", func(b64data string, targetW int, targetH int) map[string]any {
-		if targetW <= 0 {
-			targetW = 240
-		}
-		if targetH <= 0 {
-			targetH = 240
-		}
-
+	// Supports PNG, JPEG, and GIF (including animated). The display is always
+	// 240×240; any source size is bilinear-scaled. targetW/targetH are kept for
+	// backward compatibility with the JS binding but are ignored.
+	w.Bind("convertImageToACF", func(b64data string, _, _ int) map[string]any {
 		raw, err := base64.StdEncoding.DecodeString(b64data)
 		if err != nil {
 			return map[string]any{"error": "base64 decode: " + err.Error()}
@@ -296,16 +289,23 @@ func runUI(logOut io.Writer) error {
 			log.Printf("convertImageToACF: decode error, len=%d head=%x", len(raw), prefix)
 			return map[string]any{"error": "image decode: " + err.Error()}
 		}
-		log.Printf("convertImageToACF: format=%s bounds=%v → %dx%d", format, img.Bounds(), targetW, targetH)
+		log.Printf("convertImageToACF: format=%s bounds=%v → %dx%d", format, img.Bounds(), core.DisplaySize, core.DisplaySize)
 
 		// If it's a GIF, reload with DecodeAll for animation support.
 		if format == "gif" {
 			if gifData, gifErr := gif.DecodeAll(bytes.NewReader(raw)); gifErr == nil && len(gifData.Image) > 1 {
-				return convertGIFToACF(gifData, targetW, targetH)
+				return convertGIFToACF(gifData)
 			}
 		}
 
-		acf := rgbaToACF(scaleToRGBA(img, targetW, targetH), targetW, targetH)
+		rgb, err := core.ImageToRGB565(img, core.DisplaySize, core.DisplaySize)
+		if err != nil {
+			return map[string]any{"error": "convert: " + err.Error()}
+		}
+		acf, err := core.WrapRGB565(rgb, core.DisplaySize, core.DisplaySize)
+		if err != nil {
+			return map[string]any{"error": "convert: " + err.Error()}
+		}
 		result := make([]int, len(acf))
 		for i, b := range acf {
 			result[i] = int(b)
@@ -313,8 +313,8 @@ func runUI(logOut io.Writer) error {
 
 		return map[string]any{
 			"data":   result,
-			"width":  targetW,
-			"height": targetH,
+			"width":  core.DisplaySize,
+			"height": core.DisplaySize,
 			"size":   len(acf),
 			"frames": 1,
 		}
@@ -401,17 +401,9 @@ func runUIMetricsLoop(ctx context.Context, dev *core.Device, w wv.WebView, logOu
 
 // ── Image conversion helpers ─────────────────────────────────────────────
 
-func convertGIFToACF(g *gif.GIF, targetW, targetH int) map[string]any {
+func convertGIFToACF(g *gif.GIF) map[string]any {
 	frameCount := len(g.Image)
-	log.Printf("convertGIFToACF: %d frames, loop=%d, bounds=%v → %dx%d", frameCount, g.LoopCount, g.Config, targetW, targetH)
-
-	width, height := targetW, targetH
-	if width <= 0 {
-		width = g.Config.Width
-	}
-	if height <= 0 {
-		height = g.Config.Height
-	}
+	log.Printf("convertGIFToACF: %d frames, loop=%d, bounds=%v → %dx%d", frameCount, g.LoopCount, g.Config, core.DisplaySize, core.DisplaySize)
 
 	bgColor := color.RGBA{0, 0, 0, 255}
 	if pal, ok := g.Config.ColorModel.(color.Palette); ok && int(g.BackgroundIndex) < len(pal) {
@@ -420,7 +412,7 @@ func convertGIFToACF(g *gif.GIF, targetW, targetH int) map[string]any {
 		}
 	}
 
-	canvas := image.NewRGBA(image.Rect(0, 0, width, height))
+	canvas := image.NewRGBA(image.Rect(0, 0, core.DisplaySize, core.DisplaySize))
 	fillRGBA(canvas, bgColor)
 
 	var acfFrames [][]byte
@@ -431,11 +423,15 @@ func convertGIFToACF(g *gif.GIF, targetW, targetH int) map[string]any {
 
 		draw.Draw(canvas, bounds, src, bounds.Min, draw.Over)
 
-		scaled := canvas
-		if width != targetW || height != targetH {
-			scaled = scaleToRGBA(canvas, targetW, targetH)
+		rgb, err := core.ImageToRGB565(canvas, core.DisplaySize, core.DisplaySize)
+		if err != nil {
+			return map[string]any{"error": "convert frame: " + err.Error()}
 		}
-		acfFrames = append(acfFrames, rgbaToACF(scaled, targetW, targetH))
+		wrapped, err := core.WrapRGB565(rgb, core.DisplaySize, core.DisplaySize)
+		if err != nil {
+			return map[string]any{"error": "convert frame: " + err.Error()}
+		}
+		acfFrames = append(acfFrames, wrapped)
 		frameDelays[i] = g.Delay[i]
 
 		if len(g.Disposal) > i {
@@ -463,65 +459,13 @@ func convertGIFToACF(g *gif.GIF, targetW, targetH int) map[string]any {
 
 	return map[string]any{
 		"frames":      frames,
-		"width":       targetW,
-		"height":      targetH,
+		"width":       core.DisplaySize,
+		"height":      core.DisplaySize,
 		"size":        totalSize,
 		"frameCount":  frameCount,
 		"frameDelays": frameDelays,
 		"loopCount":   g.LoopCount,
 	}
-}
-
-func scaleToRGBA(img image.Image, targetW, targetH int) *image.RGBA {
-	bounds := img.Bounds()
-	srcW := bounds.Dx()
-	srcH := bounds.Dy()
-
-	if srcW == targetW && srcH == targetH {
-		rgba := image.NewRGBA(image.Rect(0, 0, targetW, targetH))
-		draw.Draw(rgba, rgba.Bounds(), img, bounds.Min, draw.Src)
-		return rgba
-	}
-
-	dst := image.NewRGBA(image.Rect(0, 0, targetW, targetH))
-	for y := range targetH {
-		for x := range targetW {
-			sx := bounds.Min.X + x*srcW/targetW
-			sy := bounds.Min.Y + y*srcH/targetH
-			dst.Set(x, y, img.At(sx, sy))
-		}
-	}
-	return dst
-}
-
-func rgbaToACF(img *image.RGBA, targetW, targetH int) []byte {
-	pixelCount := targetW * targetH
-	rawImg := make([]byte, pixelCount*2)
-	for y := range targetH {
-		for x := range targetW {
-			c := img.RGBAAt(x, y)
-			r5 := uint16(c.R) >> 3
-			g6 := uint16(c.G) >> 2
-			b5 := uint16(c.B) >> 3
-			rgb565 := (r5 << 11) | (g6 << 5) | b5
-			idx := (y*targetW + x) * 2
-			rawImg[idx] = byte(rgb565 >> 8)
-			rawImg[idx+1] = byte(rgb565)
-		}
-	}
-
-	acf := make([]byte, 8+len(rawImg))
-	imgSize := uint32(len(rawImg))
-	acf[0] = byte(imgSize)
-	acf[1] = byte(imgSize >> 8)
-	acf[2] = byte(imgSize >> 16)
-	acf[3] = byte(imgSize >> 24)
-	acf[4] = byte(targetW)
-	acf[5] = byte(targetW >> 8)
-	acf[6] = byte(targetH)
-	acf[7] = byte(targetH >> 8)
-	copy(acf[8:], rawImg)
-	return acf
 }
 
 func fillRGBA(img *image.RGBA, c color.Color) {
