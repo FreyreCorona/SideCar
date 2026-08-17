@@ -90,7 +90,8 @@ daemonBtn.addEventListener('click', async () => {
 
   if (!state.daemonRunning) {
     daemonBtn.textContent = '… Connecting';
-    const ok = await callGo('startDaemon');
+    const port = document.getElementById('portSelect').value || 'auto';
+    const ok = await callGo('startDaemon', port);
     if (ok) {
       state.daemonRunning = true;
       daemonBtn.textContent = i18n.t('nav.stopDaemon');
@@ -413,7 +414,13 @@ function showImagePreview(file) {
       const pctx = imgCanvas.getContext('2d');
       imgCanvas.width  = 120;
       imgCanvas.height = 120;
-      pctx.drawImage(img, 0, 0, 120, 120);
+
+      // Preserve aspect ratio, letterbox on the 120×120 canvas.
+      pctx.fillStyle = '#000';
+      pctx.fillRect(0, 0, 120, 120);
+      const scale = Math.min(120 / W, 120 / H);
+      const dw = W * scale, dh = H * scale;
+      pctx.drawImage(img, (120 - dw) / 2, (120 - dh) / 2, dw, dh);
 
       imgInfo.textContent = `${W} × ${H} px`;
 
@@ -502,7 +509,7 @@ uploadBtn.addEventListener('click', async () => {
       }
     } else if (state.isImageFile && state.convertedACF) {
       // Single-frame image.
-      arr = state.convertedACF;
+      const arr = state.convertedACF;
       appendLog(`Uploading converted ACF as [${fileType}]…`);
       const result = await callGo('uploadFile', arr, fileType);
       if (result && result.error) {
@@ -514,7 +521,7 @@ uploadBtn.addEventListener('click', async () => {
     } else {
       // Raw file (already an .acf or .bin).
       const buf = await state.selectedFile.arrayBuffer();
-      arr = Array.from(new Uint8Array(buf));
+      const arr = Array.from(new Uint8Array(buf));
       appendLog(`Uploading ${state.selectedFile.name} as [${fileType}]…`);
       const result = await callGo('uploadFile', arr, fileType);
       if (result && result.error) {

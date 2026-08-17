@@ -166,7 +166,7 @@ html, body {
   text-align: center;
 }
 .daemon-btn:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35); }
-.daemon-btn.running { background: linear-gradient(135deg, var(--red), #dc2626); box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25); }
+.daemon-btn.running { background: linear-gradient(135deg, var(--red), #7f1d1d); box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25); }
 .daemon-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
 
 .lang-row {
@@ -219,12 +219,12 @@ html, body {
   appearance: none;
 }
 .select-input--sm option { 
-  background-color: #1c1c1f !important;
-  color: #ffffff !important;
+  background-color: var(--surface2) !important;
+  color: var(--text) !important;
 }
 :root.light .select-input--sm option {
-  background-color: #ffffff !important;
-  color: #000000 !important;
+  background-color: var(--surface) !important;
+  color: var(--text) !important;
 }
 
 .version { text-align:center; font-family:var(--mono); font-size:9px; color:var(--muted); letter-spacing:1px; margin-top: 4px; opacity: 0.6; }
@@ -336,8 +336,8 @@ html, body {
   appearance: none;
 }
 .select-input:focus { border-color:var(--accent); background: var(--surface3) !important; }
-.select-input option { background-color: #1c1c1f !important; color: #ffffff !important; }
-:root.light .select-input option { background-color: #ffffff !important; color: #000000 !important; }
+.select-input option { background-color: var(--surface2) !important; color: var(--text) !important; }
+:root.light .select-input option { background-color: var(--surface) !important; color: var(--text) !important; }
 
 .upload-btn {
   width:100%; background: var(--accent); color:#ffffff !important; border:none;
