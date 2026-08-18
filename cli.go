@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -33,8 +34,10 @@ func runCLI(args []string, defaultLog io.Writer) error {
 	regStr := fs.String("str", "", "string value [cmd: write-str]")
 	pageID := fs.Int("page", 1, "page number to display [cmd: show-page]")
 	regs := fs.String("regs", "", "registers as \"ID1=VAL1,ID2=VAL2,...\" [cmd: write-regs]")
+	zipPath := fs.String("zip", "", "path to file.zip for ACF generation [cmd: generate-acf, upload]")
+	outDir := fs.String("outdir", "", "output directory for generated ACF [cmd: generate-acf]")
 
-	if err := fs.Parse(args[1:]); err != nil {
+	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("error parsing flags: %v\n\n%s", err, usage())
 	}
 
@@ -79,6 +82,32 @@ func runCLI(args []string, defaultLog io.Writer) error {
 	case "reboot":
 		return dev.Reboot()
 
+	case "generate-acf":
+		if *zipPath == "" {
+			return fmt.Errorf("generate-acf requires -zip <path>")
+		}
+		if *outDir == "" {
+			*outDir = filepath.Dir(*zipPath)
+		}
+
+		gen := core.DefaultACFGenerator()
+		if err := gen.CheckWineAvailable(); err != nil {
+			return fmt.Errorf("Wine/distrobox not available: %w", err)
+		}
+
+		fmt.Printf("generating ACF from %s...\n", *zipPath)
+		ctx := context.Background()
+		result, err := gen.GenerateFromZip(ctx, *zipPath, *outDir)
+		if err != nil {
+			return fmt.Errorf("ACF generation failed: %w", err)
+		}
+
+		fmt.Printf("✓ ACF generated: %s\n", result.TextureACF)
+		if _, err := os.Stat(result.ConfigDataACF); err == nil {
+			fmt.Printf("  ConfigData ACF: %s\n", result.ConfigDataACF)
+		}
+		return nil
+
 	case "upload":
 		if *filePath == "" {
 			return fmt.Errorf("upload requires -file <path>")
@@ -87,6 +116,33 @@ func runCLI(args []string, defaultLog io.Writer) error {
 		data, err := os.ReadFile(*filePath)
 		if err != nil {
 			return fmt.Errorf("cannot read %s: %w", *filePath, err)
+		}
+
+		// Auto-generate ACF from zip if -zip is provided
+		if *zipPath != "" {
+			gen := core.DefaultACFGenerator()
+			if err := gen.CheckWineAvailable(); err != nil {
+				return fmt.Errorf("Wine/distrobox not available: %w", err)
+			}
+
+			tmpDir, err := os.MkdirTemp("", "sidecar-acf-*")
+			if err != nil {
+				return fmt.Errorf("cannot create temp dir: %w", err)
+			}
+			defer os.RemoveAll(tmpDir)
+
+			fmt.Printf("generating ACF from %s...\n", *zipPath)
+			ctx := context.Background()
+			result, err := gen.GenerateFromZip(ctx, *zipPath, tmpDir)
+			if err != nil {
+				return fmt.Errorf("ACF generation failed: %w", err)
+			}
+
+			data, err = os.ReadFile(result.TextureACF)
+			if err != nil {
+				return fmt.Errorf("cannot read generated ACF: %w", err)
+			}
+			fmt.Printf("✓ ACF generated: %s\n", result.TextureACF)
 		}
 
 		cfg := core.UploadConfig{
@@ -254,6 +310,7 @@ Commands:
   off           Turn the screen off
   brightness    Adjust brightness without changing screen state
   reboot        Reboot the device
+  generate-acf  Generate ACF file from file.zip using Wine
   upload        Upload a firmware or texture file
   write-reg     Write a numeric register
   write-regs    Write multiple registers in a single batch
@@ -272,7 +329,9 @@ Examples:
   sidecar -cmd on
   sidecar -cmd on -brightness 80
   sidecar -cmd off -device /dev/ttyUSB0 -log sidecar.log
+  sidecar -cmd generate-acf -zip file.zip -outdir ./output
   sidecar -cmd upload -file Texture.acf -type texture
+  sidecar -cmd upload -zip file.zip -type texture  # auto-generate then upload
   sidecar -cmd write-reg -reg 0x0001 -val 3
   sidecar -cmd write-str -reg 0x0010 -str "Hello world"
   sidecar -cmd show-page -page 2
@@ -307,6 +366,18 @@ Options:
 Example:
   sidecar -cmd brightness -brightness 150
 `,
+		"generate-acf": `Command: generate-acf
+Generate an ACF file from file.zip using Wine + AHMISimGenDemo.exe.
+Requires distrobox with winebox container and extracted AppImage binaries.
+
+Options:
+  -zip string     path to file.zip (required)
+  -outdir string  output directory (default: same as zip file)
+
+Examples:
+  sidecar -cmd generate-acf -zip file.zip
+  sidecar -cmd generate-acf -zip file.zip -outdir ./output
+`,
 		"upload": `Command: upload
 Upload a binary file (.acf) to the device. Supports automatic resume.
 
@@ -319,6 +390,7 @@ Workflow for images and GIFs:
 
 Options:
   -file string   path to the .acf file (required)
+  -zip string    path to file.zip for auto-generation (optional)
   -type string   destination on the device (default "texture"):
                    texture       → 0x08100000  main image/texture
                    texture_gif   → 0x08500000  animated GIF
@@ -329,6 +401,7 @@ Options:
 Examples:
   sidecar -cmd upload -file Texture.acf -type texture
   sidecar -cmd upload -file GIF_0.acf -type texture_gif
+  sidecar -cmd upload -zip file.zip -type texture  # auto-generate
 `,
 		"write-regs": `Command: write-regs
 Write multiple numeric registers in a single batch (more efficient than repeated write-reg).
