@@ -3,3 +3,5 @@ positivo.zip
 .vscode
 *.code-workspace
 /sidecar
+cmd/test/sidecar-test
+test
