@@ -3,10 +3,13 @@ package core
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"time"
 
 	"go.bug.st/serial"
 )
+
+var debug = os.Getenv("SERIAL_DEBUG") != ""
 
 type SerialPort struct {
 	port serial.Port
@@ -66,7 +69,16 @@ func (s *SerialPort) Write(data []byte) error {
 }
 
 func (s *SerialPort) Read(buf []byte) (int, error) {
-	return s.port.Read(buf)
+	n, err := s.port.Read(buf)
+	if debug {
+		if n > 0 {
+			fmt.Fprintf(os.Stderr, "[serial READ %d bytes] %x\n", n, buf[:n])
+		}
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[serial READ err] %v\n", err)
+		}
+	}
+	return n, err
 }
 
 func (s *SerialPort) ReadUntil(delim byte, timeout time.Duration) ([]byte, error) {

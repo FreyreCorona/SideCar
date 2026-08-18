@@ -104,7 +104,18 @@ func tryParseFrame(buf []byte) (*Response, int, error) {
 	}
 
 	if !resp.CRCValid() {
-		return nil, 0, ErrBadCRC
+		// Some device firmware sends CRC-enabled responses with 0x0000 as
+		// the CRC value.  Treat a CRC field of 0x0000 as "CRC not computed"
+		// and accept the frame, since rejecting it causes timeouts in normal
+		// operation.  Non-zero invalid CRCs are still rejected.
+		// The CRC field sits at buf[6+contentLen : 8+contentLen].
+		contentLen = dataLen - 2
+		crcField := binary.BigEndian.Uint16(frame[6+contentLen:])
+		if resp.crcEnabled && crcField == 0x0000 {
+			resp.crcOK = true
+		} else {
+			return nil, 0, ErrBadCRC
+		}
 	}
 
 	return resp, i + frameSize, nil

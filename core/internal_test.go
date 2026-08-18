@@ -195,6 +195,20 @@ func TestParseNumRegResponse_TruncatedData(t *testing.T) {
 	}
 }
 
+func TestParseNumRegResponse_NonZeroFunctionCode(t *testing.T) {
+	// Device firmware sends functionCode=2 in SetRegister write ACKs.
+	// The Minipanel app doesn't validate functionCode for writes.
+	// This should return an empty map (write succeeded), not an error.
+	content := []byte{0x20, 0x00, 0x00, 0x00, 0x07, 0x00}
+	result, err := parseNumRegResponse(content)
+	if err != nil {
+		t.Fatalf("should accept functionCode=2, got error: %v", err)
+	}
+	if len(result) != 0 {
+		t.Errorf("expected empty map for non-zero functionCode, got %v", result)
+	}
+}
+
 // ── parseStringRegResponse ─────────────────────────────────────────────────
 
 func TestParseStringRegResponse_Valid(t *testing.T) {

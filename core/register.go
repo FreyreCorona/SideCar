@@ -64,7 +64,7 @@ func (d *Device) writeNumRegsBatch(regs []NumRegister) (map[uint16]uint32, error
 	fmt.Fprintf(d.log, "→ WriteNumRegisters batch=%d\n", n)
 
 	cmd := NewCommand(CmdSetRegister, content)
-	resp, err := d.sendWithRetry(cmd, CmdSetRegisterResp, 1*time.Second, 3)
+	resp, err := d.sendWithRetry(cmd, CmdSetRegisterResp, 2*time.Second, 5)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func (d *Device) readNumRegsBatch(regIDs []uint16) (map[uint16]uint32, error) {
 	fmt.Fprintf(d.log, "→ ReadNumRegisters batch=%d\n", n)
 
 	cmd := NewCommand(CmdSetRegister, content)
-	resp, err := d.sendWithRetry(cmd, CmdSetRegisterResp, 1*time.Second, 3)
+	resp, err := d.sendWithRetry(cmd, CmdSetRegisterResp, 2*time.Second, 5)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +129,7 @@ func (d *Device) WriteStringRegister(regID uint16, data []byte) ([]byte, error) 
 	fmt.Fprintf(d.log, "→ WriteStringRegister regID=%d len=%d\n", regID, len(data))
 
 	cmd := NewCommand(CmdSetRegister, content)
-	resp, err := d.sendWithRetry(cmd, CmdSetRegisterResp, 1*time.Second, 3)
+	resp, err := d.sendWithRetry(cmd, CmdSetRegisterResp, 2*time.Second, 5)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +150,7 @@ func (d *Device) ReadStringRegister(regID uint16, length uint16) ([]byte, error)
 	fmt.Fprintf(d.log, "→ ReadStringRegister regID=%d maxLen=%d\n", regID, length)
 
 	cmd := NewCommand(CmdSetRegister, content)
-	resp, err := d.sendWithRetry(cmd, CmdSetRegisterResp, 1*time.Second, 3)
+	resp, err := d.sendWithRetry(cmd, CmdSetRegisterResp, 2*time.Second, 5)
 	if err != nil {
 		return nil, err
 	}
@@ -176,8 +176,12 @@ func parseNumRegResponse(content []byte) (map[uint16]uint32, error) {
 	regNum := int(header&0x0F) + 1 // regNum in the frame is N-1
 	data := content[1:]
 
+	// For write ACKs the device may return functionCode=2 (not 0).
+	// The Minipanel app does not validate functionCode for writes —
+	// it only checks commandType==0x00D0.  Accept any functionCode;
+	// only parse numeric data when functionCode==0.
 	if functionCode != 0 {
-		return nil, fmt.Errorf("SET_REGISTER_RESPONSE: unexpected functionCode %d (expected 0)", functionCode)
+		return map[uint16]uint32{}, nil
 	}
 
 	// Each register: regId(2) + value(4) = 6 bytes

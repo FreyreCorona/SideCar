@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"sync"
 	"time"
 )
@@ -39,6 +40,33 @@ func (d *Device) Close() error {
 	return d.serial.Close()
 }
 
+// WriteRaw writes raw bytes to the serial port.
+func (d *Device) WriteRaw(data []byte) error {
+	return d.serial.Write(data)
+}
+
+// ReadRaw reads available bytes from the serial port into buf.
+// Returns the number of bytes read.
+func (d *Device) ReadRaw(buf []byte) int {
+	total := 0
+	for {
+		n, err := d.serial.Read(buf[total:])
+		if err != nil || n == 0 {
+			break
+		}
+		total += n
+		if total >= len(buf) {
+			break
+		}
+	}
+	return total
+}
+
+// SerialPort returns the underlying serial port for raw access.
+func (d *Device) SerialPort() *SerialPort {
+	return d.serial
+}
+
 // Lock acquires the device mutex, preventing concurrent access by the daemon
 // and upload paths. Callers must pair with Unlock.
 func (d *Device) Lock() {
@@ -69,16 +97,28 @@ func (d *Device) send(cmd *Command, expect CommandType, timeout time.Duration) (
 func (d *Device) sendWithRetry(cmd *Command, expect CommandType, timeout time.Duration, maxRetries int) (*Response, error) {
 	var lastErr error
 	for attempt := 0; maxRetries == 0 || attempt <= maxRetries; attempt++ {
+		if debug {
+			fmt.Fprintf(os.Stderr, "[sendWithRetry] attempt=%d cmd=%s expect=%s\n", attempt, cmd.Type, expect)
+		}
 		d.serial.Drain()
 		if err := d.serial.Write(cmd.Frame()); err != nil {
 			return nil, fmt.Errorf("sendWithRetry write %s: %w", cmd.Type, err)
 		}
+		if debug {
+			fmt.Fprintf(os.Stderr, "[sendWithRetry] wrote %d bytes, sleeping 200ms\n", len(cmd.Frame()))
+		}
 		time.Sleep(200 * time.Millisecond)
 		resp, err := ExpectResponse(d.serial, expect, timeout)
 		if err == nil {
+			if debug {
+				fmt.Fprintf(os.Stderr, "[sendWithRetry] got response: type=%s\n", resp.Type)
+			}
 			return resp, nil
 		}
 		lastErr = err
+		if debug {
+			fmt.Fprintf(os.Stderr, "[sendWithRetry] error: %v\n", err)
+		}
 		if !errors.Is(err, ErrTimeout) {
 			return nil, fmt.Errorf("sendWithRetry %s: %w", cmd.Type, err)
 		}
@@ -99,7 +139,7 @@ type HandshakeResult struct {
 func (d *Device) Handshake() (*HandshakeResult, error) {
 	fmt.Fprintln(d.log, "→ Handshake")
 	cmd := NewCommand(CmdHandshake, nil)
-	resp, err := d.sendWithRetry(cmd, CmdHandshakeResponse, 500*time.Millisecond, 3)
+	resp, err := d.sendWithRetry(cmd, CmdHandshakeResponse, 2*time.Second, 5)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +246,7 @@ func (d *Device) RequestDownload(addr uint32, fileSize uint32, fileID [16]byte) 
 func (d *Device) SwitchState(payload []byte) error {
 	fmt.Fprintf(d.log, "→ SwitchState payload=%X\n", payload)
 	cmd := NewCommand(CmdSwitchState, payload)
-	_, err := d.send(cmd, CmdSwitchStateResp, 1*time.Second)
+	_, err := d.sendWithRetry(cmd, CmdSwitchStateResp, 2*time.Second, 5)
 	return err
 }
 
