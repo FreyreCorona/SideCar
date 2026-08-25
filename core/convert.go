@@ -35,8 +35,8 @@ func ImageToRGB565(src image.Image, w, h int) ([]byte, error) {
 	}
 
 	raw := make([]byte, w*h*2)
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
+	for y := range h {
+		for x := range w {
 			// Pixel-center aligned source coordinate (avoids edge bias).
 			sx := (float64(x) + 0.5) * float64(srcW) / float64(w)
 			sy := (float64(y) + 0.5) * float64(srcH) / float64(h)

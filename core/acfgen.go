@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"time"
 )
 
@@ -30,10 +31,10 @@ type ACFGenerator struct {
 func DefaultACFGenerator() *ACFGenerator {
 	home, _ := os.UserHomeDir()
 	return &ACFGenerator{
-		GenDir:         filepath.Join(home, "ahmi-work", "Gen"),
-		DistroboxName:  "winebox",
-		PlatformCode:   0, // GC9002 (240x240)
-		DitherMode:     1,
+		GenDir:        filepath.Join(home, "ahmi-work", "Gen"),
+		DistroboxName: "winebox",
+		PlatformCode:  0, // GC9002 (240x240)
+		DitherMode:    1,
 	}
 }
 
@@ -173,11 +174,8 @@ func ReplaceImagesInZip(srcZipPath, dstZipPath string, newData []byte, targetFil
 				shouldReplace = true
 			}
 		} else {
-			for _, target := range targetFilenames {
-				if file.Name == target {
-					shouldReplace = true
-					break
-				}
+			if slices.Contains(targetFilenames, file.Name) {
+				shouldReplace = true
 			}
 		}
 

@@ -57,7 +57,7 @@ go test -v -race -count=1 ./tests/...
 - **Serial auto-connect**: probes all ports with handshake, first to respond wins.
 - **Registers**: system (4, 5, 7, 2) and data (1080-2003 range). Max 16 per batch.
 - **No formatter config** beyond `go fmt` / `go vet`. No linter.
-- **Module**: `github.com/FreyreCorona/SideCar`, Go 1.26. Arch: linux/amd64 + windows/amd64.
+- **Module**: `github.com/FreyreCorona/SideCar`, Go 1.27. Arch: linux/amd64 + windows/amd64.
 
 ## When editing
 
